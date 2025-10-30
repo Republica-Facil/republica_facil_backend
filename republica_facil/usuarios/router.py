@@ -49,6 +49,7 @@ def create_user(user: UserSchema, session=Depends(get_session)):
         )
 
     db_user = User(
+        fullname=user.fullname,
         username=user.username,
         email=user.email,
         telephone=user.telephone,
@@ -88,6 +89,7 @@ def update_user(
         )
 
     try:
+        current_user.fullname = user.fullname
         current_user.username = user.username
         current_user.email = user.email
         current_user.password = get_password_hash(user.password)
