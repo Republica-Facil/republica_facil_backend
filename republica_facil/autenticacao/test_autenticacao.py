@@ -1,6 +1,6 @@
 from http import HTTPStatus
 
-from republica_facil.user.schema import UserPublic
+from republica_facil.autenticacao.schema import UserPublic
 
 
 def test_root_deve_retornar_ok_e_ola_mundo(client):
@@ -10,9 +10,7 @@ def test_root_deve_retornar_ok_e_ola_mundo(client):
     assert response.json() == {'message': 'Olá Mundo!'}
 
 
-def test_create_user_should_return_409_username_exists(
-    client, user
-):
+def test_create_user_should_return_409_username_exists(client, user):
     response = client.post(
         '/users/',
         json={

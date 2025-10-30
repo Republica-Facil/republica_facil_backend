@@ -7,8 +7,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from republica_facil.app import app
 from republica_facil.database import get_session
+from republica_facil.main import app
 from republica_facil.model.models import User, table_registry
 
 

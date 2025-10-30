@@ -16,9 +16,10 @@ class User:
     username: Mapped[str] = mapped_column(unique=True)
     email: Mapped[str] = mapped_column(unique=True)
     password: Mapped[str]
+    telephone: Mapped[str] = mapped_column(unique=True)
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
-    )  # ex: faz 1 ano que voce está cadastrado no sistema
+    )
     updated_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now(), onupdate=func.now()
     )
