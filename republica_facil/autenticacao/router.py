@@ -19,9 +19,6 @@ OAuth2Form = Annotated[OAuth2PasswordRequestForm, Depends()]
 T_Session = Annotated[Session, Depends(get_session)]
 
 
-# T_Session
-
-
 @router.post(
     '/login/',
     status_code=HTTPStatus.OK,
@@ -30,19 +27,19 @@ T_Session = Annotated[Session, Depends(get_session)]
 )
 def login_for_access_token(session: T_Session, form_data: OAuth2Form):
     db_user = session.scalar(
-        select(User).where(User.username == form_data.username)
+        select(User).where(User.email == form_data.username)
     )
-
+    # nao existe esse email no db
     if not db_user:
         raise HTTPException(
             status_code=HTTPStatus.UNAUTHORIZED,
-            detail='Incorrect username or password',
+            detail='Incorrect email or password',
         )
-
+    # verify_passowrd -> True se as senhas batem
     if not verify_password(form_data.password, db_user.password):
         raise HTTPException(
             status_code=HTTPStatus.UNAUTHORIZED,
-            detail='Incorrect username or password',
+            detail='Incorrect password',
         )
 
     token = create_access_token({'sub': form_data.username})

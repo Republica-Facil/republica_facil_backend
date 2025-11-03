@@ -35,22 +35,18 @@ router = APIRouter(prefix='/users', tags=['users'])
     response_model=UserPublic,
 )
 def create_user(user: UserSchema, session=Depends(get_session)):
-    # verifica se esse usuario ja existe, se existe retorna um erro ai
-    db_user = session.scalar(
-        select(User).where(
-            (User.username == user.username) | (User.email == user.email)
-        )
+    # Verifica se email já existe
+    existing_email = session.scalar(
+        select(User).where(User.email == user.email)
     )
-
-    if db_user:
+    if existing_email:
         raise HTTPException(
-            detail='Username or Email already exists',
+            detail='Email already exists',
             status_code=HTTPStatus.CONFLICT,
         )
 
     db_user = User(
         fullname=user.fullname,
-        username=user.username,
         email=user.email,
         telephone=user.telephone,
         password=get_password_hash(user.password),
@@ -90,7 +86,6 @@ def update_user(
 
     try:
         current_user.fullname = user.fullname
-        current_user.username = user.username
         current_user.email = user.email
         current_user.password = get_password_hash(user.password)
         current_user.telephone = user.telephone
@@ -103,7 +98,7 @@ def update_user(
     except IntegrityError:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
-            detail='Username or Email already exists',
+            detail='Email already exists',
         )
 
 

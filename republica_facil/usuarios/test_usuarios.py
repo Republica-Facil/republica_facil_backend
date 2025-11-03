@@ -1,59 +1,41 @@
 from http import HTTPStatus
 
-from republica_facil.autenticacao.schema import UserPublic
-
-
-def test_root_deve_retornar_ok_e_ola_mundo(client):
-    response = client.get('/')
-
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'message': 'Olá Mundo!'}
-
-
-def test_create_user_should_return_409_username_exists(client, user):
-    response = client.post(
-        '/users/',
-        json={
-            'username': user.username,
-            'email': 'alice@example.com',
-            'password': 'secret',
-        },
-    )
-    assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json() == {'detail': 'Username already exists'}
+from republica_facil.main import app
+from republica_facil.security import get_current_user
+from republica_facil.usuarios.schema import UserPublic
 
 
 def test_create_user_should_return_409_email_exists(client, user):
     response = client.post(
         '/users/',
         json={
-            'username': 'alice',
+            'fullname': 'Alice Silva',
             'email': user.email,
-            'password': 'secret',
+            'password': 'secret12',
+            'telephone': '11777777777',
         },
     )
     assert response.status_code == HTTPStatus.CONFLICT
     assert response.json() == {'detail': 'Email already exists'}
 
 
-def test_delete_user_should_return_not_found(client):
+def test_delete_user_should_return_unauthorized(client):
     response = client.delete('/users/666')
 
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'User not found'}
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-def test_update_user_should_return_not_found(client):
+def test_update_user_should_return_unauthorized(client):
     response = client.put(
         '/users/666',
         json={
-            'username': 'bob',
+            'fullname': 'Bob Silva',
             'email': 'bob@example.com',
             'password': 'mynewpassword',
+            'telephone': '11555555555',
         },
     )
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'User not found'}
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
 def test_get_user_should_return_not_found(client):
@@ -68,9 +50,10 @@ def test_get_user(client, user):
 
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {
-        'username': user.username,
-        'email': user.email,
         'id': user.id,
+        'fullname': user.fullname,
+        'email': user.email,
+        'telephone': user.telephone,
     }
 
 
@@ -78,16 +61,18 @@ def test_create_user(client):
     response = client.post(
         '/users/',
         json={
-            'username': 'testusername',
+            'fullname': 'Test User',
             'email': 'test@example.com',
-            'password': 'password',
+            'password': 'password123',
+            'telephone': '11999999999',
         },
     )
     assert response.status_code == HTTPStatus.CREATED
     assert response.json() == {
-        'username': 'testusername',
-        'email': 'test@example.com',
         'id': 1,
+        'fullname': 'Test User',
+        'email': 'test@example.com',
+        'telephone': '11999999999',
     }
 
 
@@ -107,51 +92,74 @@ def test_read_users_with_users(client, user):
 
 
 def test_update_user(client, user):
-    response = client.put(
-        '/users/1',
-        json={
-            'username': 'bob',
+    # Simular autenticação
+    def get_current_user_override():
+        return user
+
+    app.dependency_overrides[get_current_user] = get_current_user_override
+
+    try:
+        response = client.put(
+            f'/users/{user.id}',
+            json={
+                'fullname': 'Bob Silva',
+                'email': 'bob@example.com',
+                'password': 'secret123',
+                'telephone': '11888888888',
+            },
+        )
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.json() == {
+            'id': user.id,
+            'fullname': 'Bob Silva',
             'email': 'bob@example.com',
-            'password': 'secret',
-        },
-    )
-
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {
-        'username': 'bob',
-        'email': 'bob@example.com',
-        'id': 1,
-    }
+            'telephone': '11888888888',
+        }
+    finally:
+        app.dependency_overrides.clear()
 
 
-def test_update_integrity_error(client, user):
-    client.post(
-        '/users',
-        json={
-            'username': 'fausto',
-            'email': 'fausto@example.com',
-            'password': 'secret',
-        },
-    )
+# COLOCAR TOKEN NO CONFTEST
 
-    # Alterando o user das fixture para fausto
-    response_update = client.put(
-        f'/users/{user.id}',
-        json={
-            'username': 'fausto',
-            'email': 'bob@example.com',
-            'password': 'mynewpassword',
-        },
-    )
+# def test_update_integrity_error(client, user):
+#     client.post(
+#         '/users/',
+#         json={
+#             'fullname': 'Fausto Silva',
+#             'email': 'fausto@example.com',
+#             'password': 'secret123',
+#             'telephone': '11666666666',
+#         },
+#     )
 
-    assert response_update.status_code == HTTPStatus.CONFLICT
-    assert response_update.json() == {
-        'detail': 'Username or Email already exists'
-    }
+#         response_update = client.put(
+#             f'/users/{user.id}',
+#             json={
+#                 'fullname': 'Fausto Silva Updated',
+#                 'email': 'bob@example.com',
+#                 'password': 'mynewpassword',
+#                 'telephone': '11777777777',
+#             },
+#         )
+
+#         assert response_update.status_code == HTTPStatus.CONFLICT
+#         assert response_update.json() == {'detail': 'Email already exists'}
+#     finally:
+#         app.dependency_overrides.clear()
 
 
 def test_delete_user(client, user):
-    response = client.delete('/users/1')
+    # Simular autenticação
+    def get_current_user_override():
+        return user
 
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'message': 'User deleted'}
+    app.dependency_overrides[get_current_user] = get_current_user_override
+
+    try:
+        response = client.delete(f'/users/{user.id}')
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.json() == {'message': 'User deleted'}
+    finally:
+        app.dependency_overrides.clear()

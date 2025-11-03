@@ -1,157 +1,167 @@
+"""Testes para o módulo de autenticação."""
+
 from http import HTTPStatus
 
-from republica_facil.autenticacao.schema import UserPublic
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
+
+from republica_facil.database import get_session
+from republica_facil.main import app
+from republica_facil.model.models import User, table_registry
+from republica_facil.security import get_password_hash
+
+JWT_TOKEN_PARTS_COUNT = 3  # Token JWT tem 3 partes: header.payload.signature
 
 
-def test_root_deve_retornar_ok_e_ola_mundo(client):
-    response = client.get('/')
+@pytest.fixture
+def session():
+    """Cria uma sessão de teste."""
+    engine = create_engine(
+        'sqlite:///:memory:',
+        connect_args={'check_same_thread': False},
+        poolclass=StaticPool,
+    )
+    table_registry.metadata.create_all(engine)
 
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'message': 'Olá Mundo!'}
+    with Session(engine) as session:
+        yield session
 
 
-def test_create_user_should_return_409_username_exists(client, user):
+@pytest.fixture
+def client(session):
+    """Cria um cliente de teste."""
+
+    def get_session_override():
+        return session
+
+    with TestClient(app) as client:
+        app.dependency_overrides[get_session] = get_session_override
+        yield client
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def user(session):
+    """Cria um usuário de teste."""
+    user = User(
+        fullname='Test User',
+        email='testuser@example.com',
+        password=get_password_hash('testpass123'),
+        telephone='11999999999',
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def test_login_success(client, user):
+    """Testa login com credenciais válidas."""
     response = client.post(
-        '/users/',
-        json={
-            'username': user.username,
-            'email': 'alice@example.com',
-            'password': 'secret',
+        '/auth/login/',
+        data={
+            'username': user.email,
+            'password': 'testpass123',  # senha padrão do fixture
         },
     )
-    assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json() == {'detail': 'Username already exists'}
+    assert response.status_code == HTTPStatus.OK
+    data = response.json()
+    assert 'access_token' in data
+    assert data['token_type'] == 'Bearer'
 
 
-def test_create_user_should_return_409_email_exists(client, user):
+def test_login_wrong_username(client):
+    """Testa login com username inexistente."""
     response = client.post(
-        '/users/',
-        json={
-            'username': 'alice',
-            'email': user.email,
-            'password': 'secret',
+        '/auth/login/',
+        data={
+            'username': 'wrong_user@example.com',
+            'password': 'testpass123',
         },
     )
-    assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json() == {'detail': 'Email already exists'}
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert 'Incorrect email or password' in response.json()['detail']
 
 
-def test_delete_user_should_return_not_found(client):
-    response = client.delete('/users/666')
-
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'User not found'}
-
-
-def test_update_user_should_return_not_found(client):
-    response = client.put(
-        '/users/666',
-        json={
-            'username': 'bob',
-            'email': 'bob@example.com',
-            'password': 'mynewpassword',
-        },
-    )
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'User not found'}
-
-
-def test_get_user_should_return_not_found(client):
-    response = client.get('/users/666')
-
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'User not found'}
-
-
-def test_get_user(client, user):
-    response = client.get(f'/users/{user.id}')
-
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {
-        'username': user.username,
-        'email': user.email,
-        'id': user.id,
-    }
-
-
-def test_create_user(client):
+def test_login_wrong_password(client, user):
+    """Testa login com senha incorreta."""
     response = client.post(
-        '/users/',
-        json={
-            'username': 'testusername',
-            'email': 'test@example.com',
-            'password': 'password',
+        '/auth/login/',
+        data={
+            'username': user.email,
+            'password': 'wrong_password',
         },
     )
-    assert response.status_code == HTTPStatus.CREATED
-    assert response.json() == {
-        'username': 'testusername',
-        'email': 'test@example.com',
-        'id': 1,
-    }
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert 'Incorrect password' in response.json()['detail']
 
 
-def test_read_users(client):
-    response = client.get('/users/')
-
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'users': []}
-
-
-def test_read_users_with_users(client, user):
-    user_schema = UserPublic.model_validate(user).model_dump()
-    response = client.get('/users/')
-
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'users': [user_schema]}
+def test_login_missing_credentials(client):
+    """Testa login sem credenciais."""
+    response = client.post('/auth/login/', data={})
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-def test_update_user(client, user):
-    response = client.put(
-        '/users/1',
-        json={
-            'username': 'bob',
-            'email': 'bob@example.com',
-            'password': 'secret',
+def test_login_missing_username(client):
+    """Testa login sem username."""
+    response = client.post(
+        '/auth/login/',
+        data={
+            'password': 'testpass123',
         },
     )
-
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {
-        'username': 'bob',
-        'email': 'bob@example.com',
-        'id': 1,
-    }
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-def test_update_integrity_error(client, user):
-    client.post(
-        '/users',
-        json={
-            'username': 'fausto',
-            'email': 'fausto@example.com',
-            'password': 'secret',
+def test_login_missing_password(client, user):
+    """Testa login sem password."""
+    response = client.post(
+        '/auth/login/',
+        data={
+            'username': user.email,
+        },
+    )
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_token_format(client, user):
+    """Testa se o token retornado tem o formato correto."""
+    response = client.post(
+        '/auth/login/',
+        data={
+            'username': user.email,
+            'password': 'testpass123',
         },
     )
 
-    # Alterando o user das fixture para fausto
-    response_update = client.put(
-        f'/users/{user.id}',
-        json={
-            'username': 'fausto',
-            'email': 'bob@example.com',
-            'password': 'mynewpassword',
+    assert response.status_code == HTTPStatus.OK
+    data = response.json()
+
+    # Verificar estrutura da resposta
+    assert 'access_token' in data
+    assert 'token_type' in data
+    assert data['token_type'] == 'Bearer'
+
+    # Verificar que o token não está vazio
+    assert len(data['access_token']) > 0
+
+    # Token JWT tem 3 partes separadas por '.'
+    token_parts = data['access_token'].split('.')
+    assert len(token_parts) == JWT_TOKEN_PARTS_COUNT
+
+
+def test_login_case_sensitive_username(client, user):
+    """Testa se o username é case-sensitive."""
+    response = client.post(
+        '/auth/login/',
+        data={
+            'username': user.email.upper(),  # Maiúsculo
+            'password': 'testpass123',
         },
     )
-
-    assert response_update.status_code == HTTPStatus.CONFLICT
-    assert response_update.json() == {
-        'detail': 'Username or Email already exists'
-    }
-
-
-def test_delete_user(client, user):
-    response = client.delete('/users/1')
-
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'message': 'User deleted'}
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert 'Incorrect email or password' in response.json()['detail']
