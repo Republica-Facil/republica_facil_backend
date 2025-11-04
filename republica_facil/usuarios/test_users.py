@@ -11,8 +11,8 @@ def test_create_user_should_return_409_email_exists(client, user):
         json={
             'fullname': 'Alice Silva',
             'email': user.email,
-            'password': 'secret12',
-            'telephone': '11777777777',
+            'password': '1t1Testpass123@#S',
+            'telephone': '61992991750',
         },
     )
     assert response.status_code == HTTPStatus.CONFLICT
@@ -63,7 +63,7 @@ def test_create_user(client):
         json={
             'fullname': 'Test User',
             'email': 'test@example.com',
-            'password': 'password123',
+            'password': 'password123#S',
             'telephone': '11999999999',
         },
     )

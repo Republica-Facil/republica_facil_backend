@@ -17,7 +17,6 @@ class UserPublic(BaseModel):
     fullname: str
     email: EmailStr
     telephone: str
-    republicas: str
     model_config = ConfigDict(from_attributes=True)
 
 

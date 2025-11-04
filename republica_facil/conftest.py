@@ -28,6 +28,7 @@ def client(session):
 def engine():
     with PostgresContainer('postgres:16', driver='psycopg') as postgres:
         _engine = create_engine(postgres.get_connection_url())
+
         with _engine.begin():
             yield _engine
 
@@ -38,8 +39,9 @@ def session(engine):
 
     with Session(engine) as session:
         yield session
+        session.rollback()
 
-        table_registry.metadata.drop_all(engine)
+    table_registry.metadata.drop_all(engine)
 
 
 @contextmanager
@@ -67,7 +69,7 @@ def user(session):
     user = User(
         fullname='Test User',
         email='testuser@example.com',
-        password='testpass123',
+        password='testpass123@S',
         telephone='11999999999',
     )
     session.add(user)

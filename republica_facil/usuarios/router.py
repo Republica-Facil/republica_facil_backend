@@ -16,16 +16,13 @@ from .schema import (
     UserPublic,
     UserSchema,
 )
+from .service import (
+    verify_fullname,
+    verify_length_telephone,
+    verify_strong_password,
+)
 
 router = APIRouter(prefix='/users', tags=['users'])
-
-
-# acesse a url do prefixo /users usando o metodo POST em / -> /users/
-# o que vou retornar:
-# - status code 201 (CREATED) se o usuario for criado com sucesso
-# - a classe da resposta vai ser um JSON
-# - dentro da classe da resposta, ou seja, dentro do JSON, eu vou retorno um
-# dicionario que contem os atributos do schema UserPublic
 
 
 @router.post(
@@ -35,7 +32,21 @@ router = APIRouter(prefix='/users', tags=['users'])
     response_model=UserPublic,
 )
 def create_user(user: UserSchema, session=Depends(get_session)):
-    # Verifica se email já existe
+    if not verify_strong_password(user.password):
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail='Weak password'
+        )
+    if not verify_length_telephone(user.telephone):
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail='Verifies if a phone number is valid, including its area '
+            'code (DDD)',
+        )
+    if not verify_fullname(user.fullname):
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail='Enter your full name',
+        )
     existing_email = session.scalar(
         select(User).where(User.email == user.email)
     )
@@ -43,6 +54,19 @@ def create_user(user: UserSchema, session=Depends(get_session)):
         raise HTTPException(
             detail='Email already exists',
             status_code=HTTPStatus.CONFLICT,
+        )
+
+    existing_telephone = session.scalar(
+        select(User).where(User.telephone == user.telephone)
+    )
+    if existing_telephone:
+        raise HTTPException(
+            detail='Telephone already exists',
+            status_code=HTTPStatus.CONFLICT,
+        )
+    if not verify_strong_password(user.password):
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail='Weak password'
         )
 
     db_user = User(

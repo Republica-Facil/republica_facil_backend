@@ -3,6 +3,7 @@ from http import HTTPStatus
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
+import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jwt import DecodeError, decode, encode
@@ -20,11 +21,16 @@ pwd_context = PasswordHash.recommended()
 T_Session = Annotated[Session, Depends(get_session)]
 
 
-def create_access_token(data: dict):
+def create_access_token(data: dict, expires_delta_minutes: int = None):
     to_encode = data.copy()
-    expire = datetime.now(tz=ZoneInfo('UTC')) + timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    )
+    if expires_delta_minutes:
+        expire = datetime.now(tz=ZoneInfo('UTC')) + timedelta(
+            minutes=expires_delta_minutes
+        )
+    else:
+        expire = datetime.now(tz=ZoneInfo('UTC')) + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
     to_encode.update({'exp': expire})
     encoded_jwt = encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
@@ -63,6 +69,37 @@ def get_current_user(
             raise credentials_exception
 
     except DecodeError:
+        raise credentials_exception
+
+    user = session.scalar(select(User).where(User.email == subject_email))
+
+    if not user:
+        raise credentials_exception
+
+    return user
+
+
+def get_current_user_for_reset(
+    session: T_Session,
+    token: str = Depends(oauth2_scheme),
+):
+    credentials_exception = HTTPException(
+        status_code=HTTPStatus.UNAUTHORIZED,
+        detail='Could not validate credentials',
+        headers={'WWW-Authenticate': 'Bearer'},
+    )
+
+    try:
+        payload = decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
+        subject_email = payload.get('sub')
+        scope: str = payload.get('scope')
+
+        if not subject_email or scope != 'reset_password':
+            raise credentials_exception
+
+    except (jwt.DecodeError, jwt.ExpiredSignatureError):
         raise credentials_exception
 
     user = session.scalar(select(User).where(User.email == subject_email))
