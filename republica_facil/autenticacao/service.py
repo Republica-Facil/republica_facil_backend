@@ -38,9 +38,9 @@ def request_password_reset_code(db: Session, email: str):
         redis_key = f'reset_code:{email}'
 
         try:
-            redis_client.setex(redis_key, ttl_seconds, reset_code)
+            redis_client.set(redis_key, reset_code, ttl_seconds)
 
-            send_code_email(email=email, code=reset_code)
+            send_code_email(email=email, code=reset_code, name=user.fullname)
 
         except Exception as e:
             raise HTTPException(
@@ -55,7 +55,7 @@ def send_code_email(email: str, code: str, name: str = ''):
     with open(FILE_EMAIL_HTML, 'r', encoding='utf-8') as file_html:
         text = file_html.read()
     template = Template(text)
-    text_email = template.substitute(codeL=code)
+    text_email = template.substitute(codeL=code, nameL=name)
 
     # Transformar essa mensagem em MIMEMultipart (to, from, subject, ...)
 

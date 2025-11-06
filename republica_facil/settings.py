@@ -17,3 +17,5 @@ class Settings(BaseSettings):
     EMAIL_PASSWORD: str
     SMTP_PORT: int
     SMTP_SERVER: str
+    LOCALHOST_FRONTEND: str
+    LOCALHOST_FRONTEND_ADDRESS: str
