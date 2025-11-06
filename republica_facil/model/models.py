@@ -74,3 +74,8 @@ class Membro:
     # MEMBRO ->
 
     # NOVA TABELA -> TERNARIO NOVA TABELA
+
+    # vou ter que verificar isso sempre
+    # o user id do usuarios se for igual o
+    #  user_id de republica voce pode criar um membro
+    # precisa passar o id da republica no republica id de membro

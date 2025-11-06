@@ -2,14 +2,19 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from republica_facil.database import get_session
-from republica_facil.model.models import User
 from republica_facil.security import get_current_user, get_password_hash
 
+from .repository import (
+    create_user_db,
+    get_user_by_email,
+    get_user_by_id,
+    get_user_by_telephone,
+    get_users,
+)
 from .schema import (
     Message,
     UserList,
@@ -47,18 +52,14 @@ def create_user(user: UserSchema, session=Depends(get_session)):
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
             detail='Enter your full name',
         )
-    existing_email = session.scalar(
-        select(User).where(User.email == user.email)
-    )
+    existing_email = get_user_by_email(session, user.email)
     if existing_email:
         raise HTTPException(
             detail='Email already exists',
             status_code=HTTPStatus.CONFLICT,
         )
 
-    existing_telephone = session.scalar(
-        select(User).where(User.telephone == user.telephone)
-    )
+    existing_telephone = get_user_by_telephone(session, user.telephone)
     if existing_telephone:
         raise HTTPException(
             detail='Telephone already exists',
@@ -69,16 +70,14 @@ def create_user(user: UserSchema, session=Depends(get_session)):
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail='Weak password'
         )
 
-    db_user = User(
-        fullname=user.fullname,
-        email=user.email,
-        telephone=user.telephone,
-        password=get_password_hash(user.password),
-    )
+    user_data = {
+        'fullname': user.fullname,
+        'email': user.email,
+        'telephone': user.telephone,
+        'password': get_password_hash(user.password),
+    }
 
-    session.add(db_user)
-    session.commit()
-    session.refresh(db_user)
+    db_user = create_user_db(session, user_data)
 
     return db_user
 
@@ -87,7 +86,7 @@ def create_user(user: UserSchema, session=Depends(get_session)):
 def read_users(
     limit: int = 10, offset: int = 0, session: Session = Depends(get_session)
 ):
-    users = session.scalars(select(User).limit(limit).offset(offset))
+    users = get_users(session, limit, offset)
     return {'users': users}
 
 
@@ -148,7 +147,7 @@ def delete_user(
 def read_user__exercicio(
     user_id: int, session: Session = Depends(get_session)
 ):
-    db_user = session.scalar(select(User).where(User.id == user_id))
+    db_user = get_user_by_id(session, user_id)
 
     if not db_user:
         raise HTTPException(

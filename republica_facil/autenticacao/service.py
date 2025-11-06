@@ -40,7 +40,6 @@ def request_password_reset_code(db: Session, email: str):
         try:
             redis_client.setex(redis_key, ttl_seconds, reset_code)
 
-            # Enviar por email (simulado)
             send_code_email(email=email, code=reset_code)
 
         except Exception as e:
@@ -50,13 +49,13 @@ def request_password_reset_code(db: Session, email: str):
             )
 
 
-def send_code_email(email: str, code: str):
+def send_code_email(email: str, code: str, name: str = ''):
     FILE_EMAIL_HTML = Path(__file__).parent / 'email.html'
 
     with open(FILE_EMAIL_HTML, 'r', encoding='utf-8') as file_html:
         text = file_html.read()
-        template = Template(text)
-        text_email = template.substitute(codeL=code)
+    template = Template(text)
+    text_email = template.substitute(codeL=code)
 
     # Transformar essa mensagem em MIMEMultipart (to, from, subject, ...)
 

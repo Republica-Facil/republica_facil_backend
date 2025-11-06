@@ -4,7 +4,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
 
 from republica_facil.autenticacao import schema, service
 from republica_facil.database import redis_client
@@ -16,7 +15,9 @@ from republica_facil.security import (
     get_password_hash,
     verify_password,
 )
+from republica_facil.usuarios.service import verify_strong_password
 
+from .repository import get_user
 from .schema import TokenJWT
 
 router = APIRouter(prefix='/auth', tags=['auth'])
@@ -31,9 +32,7 @@ OAuth2Form = Annotated[OAuth2PasswordRequestForm, Depends()]
     response_model=TokenJWT,
 )
 def login_for_access_token(session: T_Session, form_data: OAuth2Form):
-    db_user = session.scalar(
-        select(User).where(User.email == form_data.username)
-    )
+    db_user = get_user(form_data.username, session)
     # nao existe esse email no db
     if not db_user:
         raise HTTPException(
@@ -111,6 +110,11 @@ def reset_password(
     # 1. A dependência já nos deu o 'current_user'
 
     # 2. Atualiza a senha no objeto
+    if not verify_strong_password(request.new_password):
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
+            detail='Weak password',
+        )
     current_user.password = get_password_hash(request.new_password)
 
     session.add(current_user)
