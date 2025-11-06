@@ -11,6 +11,7 @@ from republica_facil.model.models import User
 from republica_facil.security import (
     T_Session,
     create_access_token,
+    get_current_user,
     get_current_user_for_reset,
     get_password_hash,
     verify_password,
@@ -46,7 +47,9 @@ def login_for_access_token(session: T_Session, form_data: OAuth2Form):
             detail='Incorrect password',
         )
 
-    token = create_access_token({'sub': form_data.username})
+    token = create_access_token(
+        data={'sub': db_user.email}, user_id=db_user.id
+    )
 
     return {'access_token': token, 'token_type': 'Bearer'}
 
@@ -121,3 +124,8 @@ def reset_password(
     session.commit()
 
     return {'message': 'password changed successfully.'}
+
+
+@router.post('/logout', status_code=HTTPStatus.OK)
+def logout(current_user: User = Depends(get_current_user)):
+    return {'message': 'Logout successful'}

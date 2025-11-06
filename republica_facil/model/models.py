@@ -1,17 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
 
 from sqlalchemy import ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
 
 table_registry = registry()
-
-
-class RoleEnum(Enum):
-    ADMIN = 'ADMIN'
-    MEMBER = 'MEMBER'
 
 
 @table_registry.mapped_as_dataclass
@@ -39,15 +33,21 @@ class Republica:
     __tablename__ = 'republicas'
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    name: Mapped[str]
-    address: Mapped[str]
+    nome: Mapped[str]
+    cep: Mapped[str]
+    rua: Mapped[str]
+    numero: Mapped[str]
+    bairro: Mapped[str]
+    cidade: Mapped[str]
+    estado: Mapped[str]
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    complemento: Mapped[str | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now(), onupdate=func.now()
     )
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
     membros: Mapped[list[Membro]] = relationship(
         init=False, cascade='all, delete-orphan', lazy='selectin'
     )

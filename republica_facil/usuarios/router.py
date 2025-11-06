@@ -6,7 +6,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from republica_facil.database import get_session
-from republica_facil.security import get_current_user, get_password_hash
+from republica_facil.security import (
+    get_current_user,
+    get_password_hash,
+    verify_password,
+)
 
 from .repository import (
     create_user_db,
@@ -20,6 +24,8 @@ from .schema import (
     UserList,
     UserPublic,
     UserSchema,
+    UserUpdate,
+    UserUpdatePassword,
 )
 from .service import (
     verify_fullname,
@@ -98,7 +104,7 @@ def read_users(
 )
 def update_user(
     user_id: int,
-    user: UserSchema,
+    user: UserUpdate,
     session=Depends(get_session),
     current_user=Depends(get_current_user),
 ):
@@ -110,7 +116,6 @@ def update_user(
     try:
         current_user.fullname = user.fullname
         current_user.email = user.email
-        current_user.password = get_password_hash(user.password)
         current_user.telephone = user.telephone
 
         session.commit()
@@ -122,6 +127,57 @@ def update_user(
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
             detail='Email already exists',
+        )
+
+
+@router.patch(
+    '/change-password/{user_id}',
+    status_code=HTTPStatus.OK,
+    response_class=JSONResponse,
+    response_model=Message,
+)
+def update_password(
+    user_id: int,
+    user: UserUpdatePassword,
+    session=Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    if current_user.id != user_id:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail='Not enough permissions'
+        )
+
+    try:
+        if not verify_password(
+            plain_password=user.old_password,
+            hashed_password=current_user.password,
+        ):
+            raise HTTPException(
+                status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
+                detail='Erro ao processar senha antiga',
+            )
+        if user.new_password != user.confirm_password:
+            raise HTTPException(
+                status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
+                detail='As senhas devem ser iguais',
+            )
+
+        if not verify_strong_password(user.new_password):
+            raise HTTPException(
+                status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
+                detail='Senha fraca',
+            )
+
+        current_user.password = get_password_hash(user.new_password)
+        session.commit()
+        session.refresh(current_user)
+
+        return {'message': 'Senha alterada com sucesso'}
+
+    except Exception:
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail='Erro interno do servidor',
         )
 
 

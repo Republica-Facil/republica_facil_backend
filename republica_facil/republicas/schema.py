@@ -4,14 +4,18 @@ from pydantic import BaseModel, ConfigDict
 class RepublicaCreate(BaseModel):
     """Schema para criação de república."""
 
-    name: str
-    address: str
+    nome: str
+    cep: str
+    rua: str
+    numero: str
+    complemento: str | None = None
+    bairro: str
+    cidade: str
+    estado: str
 
 
-class RepublicaPublic(BaseModel):
-    id: int | None = None
-    name: str
-    address: str
+class RepublicaPublic(RepublicaCreate):
+    id: int
     model_config = ConfigDict(from_attributes=True)
 
 

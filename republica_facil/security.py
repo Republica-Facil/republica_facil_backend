@@ -21,8 +21,14 @@ pwd_context = PasswordHash.recommended()
 T_Session = Annotated[Session, Depends(get_session)]
 
 
-def create_access_token(data: dict, expires_delta_minutes: int = None):
+def create_access_token(
+    data: dict, user_id: int = None, expires_delta_minutes: int = None
+):
     to_encode = data.copy()
+
+    if user_id is not None:
+        to_encode.update({'id': user_id})
+
     if expires_delta_minutes:
         expire = datetime.now(tz=ZoneInfo('UTC')) + timedelta(
             minutes=expires_delta_minutes
@@ -31,7 +37,9 @@ def create_access_token(data: dict, expires_delta_minutes: int = None):
         expire = datetime.now(tz=ZoneInfo('UTC')) + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
+
     to_encode.update({'exp': expire})
+
     encoded_jwt = encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
@@ -63,9 +71,10 @@ def get_current_user(
         payload = decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
+        user_id = payload.get('id')
         subject_email = payload.get('sub')
 
-        if not subject_email:
+        if not subject_email or not user_id:
             raise credentials_exception
 
     except DecodeError:

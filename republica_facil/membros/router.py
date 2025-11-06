@@ -1,9 +1,234 @@
-# primeira coisa
-from fastapi import APIRouter
+from http import HTTPStatus
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from republica_facil.database import get_session
+from republica_facil.model.models import Membro, Republica, User
+from republica_facil.security import get_current_user
+from republica_facil.usuarios.schema import Message
+
+from .schema import ListMember, Member, MemberPublic
 
 router = APIRouter(prefix='/membros', tags=['membros'])
 
+CurrentUser = Annotated[User, Depends(get_current_user)]
+T_Session = Annotated[Session, Depends(get_session)]
 
-@router.get('/')
-def read_membros():
-    return 'opa'
+
+@router.post(
+    '/{republica_id}',
+    status_code=HTTPStatus.CREATED,
+    response_class=JSONResponse,
+    response_model=MemberPublic,
+)
+def create_member(
+    member: Member, session: T_Session, user: CurrentUser, republica_id: int
+):
+    db_republica = session.scalar(
+        select(Republica).where(Republica.id == republica_id)
+    )
+
+    if db_republica:
+        if db_republica.user_id == user.id:
+            try:
+                new_member = Membro(
+                    fullname=member.fullname,
+                    email=member.email,
+                    telephone=member.telephone,
+                    republica_id=republica_id,
+                )
+
+                session.add(new_member)
+                session.commit()
+                session.refresh(new_member)
+
+                return new_member
+            except IntegrityError:
+                raise HTTPException(
+                    status_code=HTTPStatus.CONFLICT, detail='Membro ja existe'
+                )
+        else:
+            raise HTTPException(
+                status_code=HTTPStatus.UNAUTHORIZED,
+                detail='Permissões negadas',
+            )
+
+    raise HTTPException(
+        status_code=HTTPStatus.NOT_FOUND, detail='Republica nao encontrada'
+    )
+
+
+@router.get(
+    '/{republica_id}',
+    status_code=HTTPStatus.OK,
+    response_class=JSONResponse,
+    response_model=ListMember,
+)
+def read_members(
+    session: T_Session,
+    user: CurrentUser,
+    republica_id: int,
+    limit=10,
+    offset=0,
+):
+    db_republica = session.scalar(
+        select(Republica).where(Republica.id == republica_id)
+    )
+
+    if db_republica:
+        if db_republica.user_id == user.id:
+            members = session.scalars(
+                select(Membro)
+                .where(Membro.republica_id == republica_id)
+                .offset(offset)
+                .limit(limit)
+            )
+            return {'members': members}
+        else:
+            raise HTTPException(
+                status_code=HTTPStatus.UNAUTHORIZED,
+                detail='Permissões negadas',
+            )
+
+    raise HTTPException(
+        status_code=HTTPStatus.NOT_FOUND, detail='Republica nao encontrada'
+    )
+
+
+@router.get(
+    '/{republica_id}/{member_id}',
+    status_code=HTTPStatus.OK,
+    response_class=JSONResponse,
+    response_model=MemberPublic,
+)
+def read_member(
+    session: T_Session, user: CurrentUser, republica_id: int, member_id: int
+):
+    db_republica = session.scalar(
+        select(Republica).where(Republica.id == republica_id)
+    )
+
+    if db_republica:
+        if db_republica.user_id == user.id:
+            member = session.scalar(
+                select(Membro).where(
+                    Membro.republica_id == republica_id, Membro.id == member_id
+                )
+            )
+            if member:
+                return member
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail='Membro nao encontrado',
+            )
+        else:
+            raise HTTPException(
+                status_code=HTTPStatus.UNAUTHORIZED,
+                detail='Permissões negadas',
+            )
+
+    raise HTTPException(
+        status_code=HTTPStatus.NOT_FOUND, detail='Republica nao encontrada'
+    )
+
+
+@router.put(
+    '/{republica_id}/{member_id}',
+    status_code=HTTPStatus.OK,
+    response_class=JSONResponse,
+    response_model=MemberPublic,
+)
+def update_member(
+    member: Member,
+    session: T_Session,
+    user: CurrentUser,
+    republica_id: int,
+    member_id: int,
+):
+    db_republica = session.scalar(
+        select(Republica).where(Republica.id == republica_id)
+    )
+
+    if db_republica:
+        if db_republica.user_id == user.id:
+            db_member = session.scalar(
+                select(Membro).where(
+                    Membro.republica_id == republica_id, Membro.id == member_id
+                )
+            )
+            if db_member:
+                try:
+                    db_member.fullname = member.fullname
+                    db_member.email = member.email
+                    db_member.telephone = member.telephone
+
+                    session.commit()
+                    session.refresh(db_member)
+
+                    return db_member
+
+                except IntegrityError:
+                    raise HTTPException(
+                        status_code=HTTPStatus.CONFLICT,
+                        detail='Membro ja existe',
+                    )
+        else:
+            raise HTTPException(
+                status_code=HTTPStatus.UNAUTHORIZED,
+                detail='Permissões negadas',
+            )
+
+    raise HTTPException(
+        status_code=HTTPStatus.NOT_FOUND, detail='Republica nao encontrada'
+    )
+
+
+@router.delete(
+    '/{republica_id}/{member_id}',
+    status_code=HTTPStatus.OK,
+    response_class=JSONResponse,
+    response_model=Message,
+)
+def delete_member(
+    session: T_Session,
+    user: CurrentUser,
+    republica_id: int,
+    member_id: int,
+):
+    db_republica = session.scalar(
+        select(Republica).where(Republica.id == republica_id)
+    )
+
+    if db_republica:
+        if db_republica.user_id == user.id:
+            db_member = session.scalar(
+                select(Membro).where(
+                    Membro.republica_id == republica_id, Membro.id == member_id
+                )
+            )
+            if db_member:
+                try:
+                    session.delete(db_member)
+                    session.commit()
+
+                    return {'message': 'Membro excluido'}
+
+                except Exception:
+                    raise HTTPException(
+                        status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                        detail='Erro interno do servidor',
+                    )
+        else:
+            raise HTTPException(
+                status_code=HTTPStatus.UNAUTHORIZED,
+                detail='Permissões negadas',
+            )
+
+    raise HTTPException(
+        status_code=HTTPStatus.NOT_FOUND, detail='Republica nao encontrada'
+    )

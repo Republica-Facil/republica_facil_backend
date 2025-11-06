@@ -57,7 +57,7 @@ concurrency = ["thread", "greenlet"]
 lint = 'ruff check'
 pre_format = 'ruff check --fix'
 format = 'ruff format'
-run = 'fastapi dev republica_facil/main.py'
+run = 'fastapi dev republica_facil/main.py --port 8001'
 pre_test = 'task lint'
 test = 'pytest -s -x --cov=republica_facil -vv'
 post_test = 'coverage html'

@@ -34,16 +34,6 @@ def create_republica(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail='Erro interno do servidor',
         )
-    except ValueError as e:
-        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail=str(e))
-    except Exception as e:  # <-- Adicione "as e" aqui
-        print('!!!!!!!!!! ERRO INTERNO NÃO ESPERADO !!!!!!!!!!!')
-        print(e)  # <-- Adicione este print
-        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail='Erro interno do servidor',
-        )
 
 
 @router.get('/{republica_id}', response_model=RepublicaPublic)

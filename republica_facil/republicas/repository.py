@@ -29,8 +29,14 @@ def create_republica(
     try:
         # Criar a república
         republica = Republica(
-            name=republica_data.name,
-            address=republica_data.address,
+            nome=republica_data.nome,
+            cep=republica_data.cep,
+            rua=republica_data.rua,
+            numero=republica_data.numero,
+            complemento=republica_data.complemento,
+            bairro=republica_data.bairro,
+            cidade=republica_data.cidade,
+            estado=republica_data.estado,
             user_id=db_user.id,
         )
         session.add(republica)
