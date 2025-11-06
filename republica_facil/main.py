@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from republica_facil.settings import Settings
 from republica_facil.autenticacao import router as auth
 from republica_facil.membros import router as membros
 from republica_facil.republicas import router as republicas
+from republica_facil.settings import Settings
 from republica_facil.usuarios import router as user
 
 app = FastAPI()
@@ -17,8 +17,8 @@ app.add_middleware(
         Settings().LOCALHOST_FRONTEND_ADDRESS,
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
 app.include_router(auth.router)
