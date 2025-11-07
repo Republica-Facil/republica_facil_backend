@@ -147,38 +147,31 @@ def update_password(
             status_code=HTTPStatus.FORBIDDEN, detail='Not enough permissions'
         )
 
-    try:
-        if not verify_password(
-            plain_password=user.old_password,
-            hashed_password=current_user.password,
-        ):
-            raise HTTPException(
-                status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
-                detail='Erro ao processar senha antiga',
-            )
-        if user.new_password != user.confirm_password:
-            raise HTTPException(
-                status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
-                detail='As senhas devem ser iguais',
-            )
-
-        if not verify_strong_password(user.new_password):
-            raise HTTPException(
-                status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
-                detail='Senha fraca',
-            )
-
-        current_user.password = get_password_hash(user.new_password)
-        session.commit()
-        session.refresh(current_user)
-
-        return {'message': 'Senha alterada com sucesso'}
-
-    except Exception:
+    if not verify_password(
+        plain_password=user.old_password,
+        hashed_password=current_user.password,
+    ):
         raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail='Erro interno do servidor',
+            status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
+            detail='Erro ao processar senha antiga',
         )
+    if user.new_password != user.confirm_password:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
+            detail='As senhas devem ser iguais',
+        )
+
+    if not verify_strong_password(user.new_password):
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
+            detail='Senha fraca',
+        )
+
+    current_user.password = get_password_hash(user.new_password)
+    session.commit()
+    session.refresh(current_user)
+
+    return {'message': 'Senha alterada com sucesso'}
 
 
 @router.delete('/{user_id}', status_code=HTTPStatus.OK, response_model=Message)

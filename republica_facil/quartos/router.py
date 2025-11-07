@@ -42,7 +42,9 @@ def create_quarto(
 
     if db_republica:
         if db_republica.user_id == user.id:
-            new_quarto = Quarto(numero=quarto.numero)
+            new_quarto = Quarto(
+                numero=quarto.numero, republica_id=republica_id
+            )
             session.add(new_quarto)
             session.commit()
             session.refresh(new_quarto)
@@ -135,7 +137,7 @@ def read_quarto(
     response_model=QuartoPublic,
 )
 def update_quarto(
-    quarto: Quarto,
+    quarto: QuartoSchema,
     session: T_Session,
     user: CurrentUser,
     republica_id: int,
@@ -172,7 +174,7 @@ def update_quarto(
         )
 
 
-@router.patch(
+@router.delete(
     '/{quarto_id}',
     status_code=HTTPStatus.OK,
     response_class=JSONResponse,
@@ -191,6 +193,20 @@ def delete_quarto(
                 select(Quarto).where(Quarto.id == quarto_id)
             )
             if db_quarto:
+                # prevent deleting a room that still has occupants
+                ocupante = session.scalar(
+                    select(Membro).where(Membro.quarto_id == quarto_id)
+                )
+
+                if ocupante:
+                    raise HTTPException(
+                        status_code=HTTPStatus.CONFLICT,
+                        detail=(
+                            f'Quarto ocupado por {ocupante.fullname}. '
+                            'Desocupe antes de excluir.'
+                        ),
+                    )
+
                 session.delete(db_quarto)
                 session.commit()
 
@@ -272,13 +288,68 @@ def adicionar_membro_ao_quarto(
     return {'message': 'Membro adicionado ao quarto'}
 
 
+@router.patch(
+    '/{quarto_id}/desocupar',
+    status_code=HTTPStatus.OK,
+    response_class=JSONResponse,
+    response_model=Message,
+)
+def desocupar_membro_do_quarto(
+    quarto_id: int,
+    data: AdicionarMembroQuarto,
+    session: T_Session,
+    user: CurrentUser,
+):
+    """Remove o vínculo do membro com o quarto (coloca quarto_id = NULL).
+
+    Requires that the member currently is in this quarto and belongs to the
+    same república. The Membro model/column must be nullable for this to work.
+    """
+    db_quarto = session.scalar(select(Quarto).where(Quarto.id == quarto_id))
+
+    if not db_quarto:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='Quarto não encontrado'
+        )
+
+    db_republica = session.scalar(
+        select(Republica).where(Republica.id == db_quarto.republica_id)
+    )
+
+    if db_republica.user_id != user.id:
+        raise HTTPException(
+            status_code=HTTPStatus.UNAUTHORIZED, detail='Permissões negadas'
+        )
+
+    db_membro = session.scalar(
+        select(Membro).where(Membro.id == data.membro_id)
+    )
+
+    if not db_membro:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='Membro não encontrado'
+        )
+
+    if db_membro.quarto_id != quarto_id:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Membro não está neste quarto',
+        )
+
+    # set to None (desocupar)
+    db_membro.quarto_id = None
+    session.commit()
+
+    return {'message': 'Membro desocupado do quarto'}
+
+
 @router.delete(
     '/{quarto_id}/membros/{membro_id}',
     status_code=HTTPStatus.OK,
     response_class=JSONResponse,
     response_model=Message,
 )
-def remover_membro_do_quarto(
+def remover_membro_do_quarto(  # noqa: PLR0913
     quarto_id: int,
     membro_id: int,
     novo_quarto_id: int,

@@ -35,32 +35,34 @@ def create_member(
 
     if db_republica:
         if db_republica.user_id == user.id:
-            db_quarto = session.scalar(
-                select(Quarto).where(Quarto.id == member.quarto_id)
-            )
-
-            if not db_quarto:
-                raise HTTPException(
-                    status_code=HTTPStatus.NOT_FOUND,
-                    detail='Quarto não encontrado',
+            # Only validate quarto if one is provided
+            if member.quarto_id is not None:
+                db_quarto = session.scalar(
+                    select(Quarto).where(Quarto.id == member.quarto_id)
                 )
 
-            if db_quarto.republica_id != republica_id:
-                raise HTTPException(
-                    status_code=HTTPStatus.BAD_REQUEST,
-                    detail='Quarto não pertence a esta república',
+                if not db_quarto:
+                    raise HTTPException(
+                        status_code=HTTPStatus.NOT_FOUND,
+                        detail='Quarto não encontrado',
+                    )
+
+                if db_quarto.republica_id != republica_id:
+                    raise HTTPException(
+                        status_code=HTTPStatus.BAD_REQUEST,
+                        detail='Quarto não pertence a esta república',
+                    )
+
+                # Verificar se o quarto já tem um membro
+                membro_existente = session.scalar(
+                    select(Membro).where(Membro.quarto_id == member.quarto_id)
                 )
 
-            # Verificar se o quarto já tem um membro
-            membro_existente = session.scalar(
-                select(Membro).where(Membro.quarto_id == member.quarto_id)
-            )
-
-            if membro_existente:
-                raise HTTPException(
-                    status_code=HTTPStatus.CONFLICT,
-                    detail='Este quarto já está ocupado',
-                )
+                if membro_existente:
+                    raise HTTPException(
+                        status_code=HTTPStatus.CONFLICT,
+                        detail='Este quarto já está ocupado',
+                    )
 
             try:
                 new_member = Membro(
@@ -171,7 +173,7 @@ def read_member(
     response_class=JSONResponse,
     response_model=MemberPublic,
 )
-def update_member(
+def update_member(  # noqa: PLR1702
     member: Member,
     session: T_Session,
     user: CurrentUser,
@@ -182,7 +184,7 @@ def update_member(
         select(Republica).where(Republica.id == republica_id)
     )
 
-    if db_republica:
+    if db_republica:  # noqa: PLR1702
         if db_republica.user_id == user.id:
             db_member = session.scalar(
                 select(Membro).where(
@@ -190,10 +192,45 @@ def update_member(
                 )
             )
             if db_member:
+                # Verifica se está tentando mudar de quarto
+                if member.quarto_id != db_member.quarto_id:
+                    # Se quarto_id não é None, validar o novo quarto
+                    if member.quarto_id is not None:
+                        # Verificar se o novo quarto existe
+                        db_quarto = session.scalar(
+                            select(Quarto).where(Quarto.id == member.quarto_id)
+                        )
+
+                        if not db_quarto:
+                            raise HTTPException(
+                                status_code=HTTPStatus.NOT_FOUND,
+                                detail='Quarto não encontrado',
+                            )
+
+                        if db_quarto.republica_id != republica_id:
+                            raise HTTPException(
+                                status_code=HTTPStatus.BAD_REQUEST,
+                                detail='Quarto não pertence a esta república',
+                            )
+
+                        membro_no_quarto = session.scalar(
+                            select(Membro).where(
+                                Membro.quarto_id == member.quarto_id,
+                                Membro.id != member_id,
+                            )
+                        )
+
+                        if membro_no_quarto:
+                            raise HTTPException(
+                                status_code=HTTPStatus.CONFLICT,
+                                detail='Este quarto já está ocupado',
+                            )
+
                 try:
                     db_member.fullname = member.fullname
                     db_member.email = member.email
                     db_member.telephone = member.telephone
+                    db_member.quarto_id = member.quarto_id
 
                     session.commit()
                     session.refresh(db_member)

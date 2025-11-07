@@ -10,6 +10,7 @@ from testcontainers.postgres import PostgresContainer
 from republica_facil.database import get_session
 from republica_facil.main import app
 from republica_facil.model.models import User, table_registry
+from republica_facil.security import get_password_hash
 
 
 @pytest.fixture
@@ -69,8 +70,23 @@ def user(session):
     user = User(
         fullname='Test User',
         email='testuser@example.com',
-        password='testpass123@S',
+        password=get_password_hash('testpass123'),
         telephone='11999999999',
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return user
+
+
+@pytest.fixture
+def other_user(session):
+    user = User(
+        fullname='Other User',
+        email='otheruser@test.com',
+        password=get_password_hash('OtherPass123!'),
+        telephone='11888888888',
     )
     session.add(user)
     session.commit()

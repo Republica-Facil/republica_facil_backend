@@ -1,11 +1,29 @@
 from __future__ import annotations
 
-from datetime import datetime
+import enum
+from datetime import date, datetime
 
 from sqlalchemy import ForeignKey, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
 
 table_registry = registry()
+
+
+class TipoDespesa(str, enum.Enum):
+    LUZ = 'luz'
+    AGUA = 'agua'
+    INTERNET = 'internet'
+    GAS = 'gas'
+    CONDOMINIO = 'condominio'
+    LIMPEZA = 'limpeza'
+    MANUTENCAO = 'manutencao'
+    OUTROS = 'outros'
+
+
+class StatusDespesa(str, enum.Enum):
+    VENCIDA = 'vencida'
+    PENDENTE = 'pendente'
+    PAGO = 'pago'
 
 
 @table_registry.mapped_as_dataclass
@@ -65,6 +83,12 @@ class Republica:
         cascade='all, delete-orphan',
         lazy='selectin',
     )
+    despesas: Mapped[list['Despesa']] = relationship(
+        init=False,
+        back_populates='republica',
+        cascade='all, delete-orphan',
+        lazy='selectin',
+    )
 
 
 @table_registry.mapped_as_dataclass
@@ -82,12 +106,21 @@ class Membro:
         init=False, server_default=func.now(), onupdate=func.now()
     )
     republica_id: Mapped[int] = mapped_column(ForeignKey('republicas.id'))
-    quarto_id: Mapped[int] = mapped_column(ForeignKey('quartos.id'))
+    # allow membro to have no quarto (desocupado)
+    quarto_id: Mapped[int | None] = mapped_column(
+        ForeignKey('quartos.id'), nullable=True, default=None
+    )
 
     republica: Mapped[Republica] = relationship(
         init=False, back_populates='membros'
     )
     quarto: Mapped[Quarto] = relationship(init=False, back_populates='membros')
+    pagamentos: Mapped[list['Pagamento']] = relationship(
+        init=False,
+        back_populates='membro',
+        cascade='all, delete-orphan',
+        lazy='selectin',
+    )
 
 
 @table_registry.mapped_as_dataclass
@@ -113,4 +146,58 @@ class Quarto:
         back_populates='quarto',
         cascade='all, delete-orphan',
         lazy='selectin',
+    )
+
+
+@table_registry.mapped_as_dataclass
+class Despesa:
+    __tablename__ = 'despesas'
+
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    descricao: Mapped[str]
+    valor_total: Mapped[float]
+    data_vencimento: Mapped[date]
+    categoria: Mapped[TipoDespesa]
+    republica_id: Mapped[int] = mapped_column(ForeignKey('republicas.id'))
+    status: Mapped[StatusDespesa] = mapped_column(
+        default=StatusDespesa.PENDENTE
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        init=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        init=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    republica: Mapped[Republica] = relationship(
+        init=False, back_populates='despesas'
+    )
+    pagamentos: Mapped[list['Pagamento']] = relationship(
+        init=False,
+        back_populates='despesa',
+        cascade='all, delete-orphan',
+        lazy='selectin',
+    )
+
+
+@table_registry.mapped_as_dataclass
+class Pagamento:
+    __tablename__ = 'pagamentos'
+
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    valor_pago: Mapped[float]
+    data_pagamento: Mapped[datetime] = mapped_column(
+        init=False, server_default=func.now()
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        init=False, server_default=func.now()
+    )
+    membro_id: Mapped[int] = mapped_column(ForeignKey('membros.id'))
+    despesa_id: Mapped[int] = mapped_column(ForeignKey('despesas.id'))
+
+    membro: Mapped[Membro] = relationship(
+        init=False, back_populates='pagamentos'
+    )
+    despesa: Mapped[Despesa] = relationship(
+        init=False, back_populates='pagamentos'
     )
