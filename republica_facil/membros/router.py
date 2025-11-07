@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from republica_facil.database import get_session
-from republica_facil.model.models import Membro, Republica, User
+from republica_facil.model.models import Membro, Quarto, Republica, User
 from republica_facil.security import get_current_user
 from republica_facil.usuarios.schema import Message
 
@@ -35,12 +35,40 @@ def create_member(
 
     if db_republica:
         if db_republica.user_id == user.id:
+            db_quarto = session.scalar(
+                select(Quarto).where(Quarto.id == member.quarto_id)
+            )
+
+            if not db_quarto:
+                raise HTTPException(
+                    status_code=HTTPStatus.NOT_FOUND,
+                    detail='Quarto não encontrado',
+                )
+
+            if db_quarto.republica_id != republica_id:
+                raise HTTPException(
+                    status_code=HTTPStatus.BAD_REQUEST,
+                    detail='Quarto não pertence a esta república',
+                )
+
+            # Verificar se o quarto já tem um membro
+            membro_existente = session.scalar(
+                select(Membro).where(Membro.quarto_id == member.quarto_id)
+            )
+
+            if membro_existente:
+                raise HTTPException(
+                    status_code=HTTPStatus.CONFLICT,
+                    detail='Este quarto já está ocupado',
+                )
+
             try:
                 new_member = Membro(
                     fullname=member.fullname,
                     email=member.email,
                     telephone=member.telephone,
                     republica_id=republica_id,
+                    quarto_id=member.quarto_id,
                 )
 
                 session.add(new_member)

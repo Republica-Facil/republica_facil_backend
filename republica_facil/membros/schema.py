@@ -5,6 +5,7 @@ class Member(BaseModel):
     fullname: str
     email: EmailStr
     telephone: str
+    quarto_id: int
 
     # todo member: Member, deve possuir esses atributos
 

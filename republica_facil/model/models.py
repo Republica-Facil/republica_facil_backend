@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, func
+from sqlalchemy import ForeignKey, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
 
 table_registry = registry()
@@ -24,7 +24,10 @@ class User:
         init=False, server_default=func.now(), onupdate=func.now()
     )
     republicas: Mapped[list[Republica]] = relationship(
-        init=False, cascade='all, delete-orphan', lazy='selectin'
+        init=False,
+        back_populates='user',
+        cascade='all, delete-orphan',
+        lazy='selectin',
     )
 
 
@@ -48,8 +51,19 @@ class Republica:
     updated_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now(), onupdate=func.now()
     )
+
+    user: Mapped[User] = relationship(init=False, back_populates='republicas')
     membros: Mapped[list[Membro]] = relationship(
-        init=False, cascade='all, delete-orphan', lazy='selectin'
+        init=False,
+        back_populates='republica',
+        cascade='all, delete-orphan',
+        lazy='selectin',
+    )
+    quartos: Mapped[list[Quarto]] = relationship(
+        init=False,
+        back_populates='republica',
+        cascade='all, delete-orphan',
+        lazy='selectin',
     )
 
 
@@ -68,14 +82,35 @@ class Membro:
         init=False, server_default=func.now(), onupdate=func.now()
     )
     republica_id: Mapped[int] = mapped_column(ForeignKey('republicas.id'))
+    quarto_id: Mapped[int] = mapped_column(ForeignKey('quartos.id'))
 
-    # QUARTO -> REPUBLICA_ID
-    # REPUBLICA 1 OU + QUARTOS -> RELAÇÃO DE QUARTOS
-    # MEMBRO ->
+    republica: Mapped[Republica] = relationship(
+        init=False, back_populates='membros'
+    )
+    quarto: Mapped[Quarto] = relationship(init=False, back_populates='membros')
 
-    # NOVA TABELA -> TERNARIO NOVA TABELA
 
-    # vou ter que verificar isso sempre
-    # o user id do usuarios se for igual o
-    #  user_id de republica voce pode criar um membro
-    # precisa passar o id da republica no republica id de membro
+@table_registry.mapped_as_dataclass
+class Quarto:
+    __tablename__ = 'quartos'
+    __table_args__ = (UniqueConstraint('numero', 'republica_id'),)
+
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    numero: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(
+        init=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        init=False, server_default=func.now(), onupdate=func.now()
+    )
+    republica_id: Mapped[int] = mapped_column(ForeignKey('republicas.id'))
+
+    republica: Mapped[Republica] = relationship(
+        init=False, back_populates='quartos'
+    )
+    membros: Mapped[list[Membro]] = relationship(
+        init=False,
+        back_populates='quarto',
+        cascade='all, delete-orphan',
+        lazy='selectin',
+    )
