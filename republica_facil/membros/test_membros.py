@@ -11,9 +11,13 @@ from sqlalchemy.pool import StaticPool
 from republica_facil.database import get_session
 from republica_facil.main import app
 from republica_facil.model.models import (
+    Despesa,
     Membro,
+    Pagamento,
     Quarto,
     Republica,
+    StatusDespesa,
+    TipoDespesa,
     User,
     table_registry,
 )
@@ -773,3 +777,217 @@ def test_delete_member_not_found(client, token, republica):
 
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert 'Republica nao encontrada' in response.json()['detail']
+
+
+# Testes de soft delete e histórico financeiro
+
+
+def test_soft_delete_member_preserves_in_database(  # noqa: PLR0913, PLR0917
+    client, token, republica, membro, session
+):
+    """Testa que o soft delete preserva o membro no banco de dados."""
+    # Deletar membro
+    response = client.delete(
+        f'/membros/{republica.id}/{membro.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+    # Buscar membro diretamente no banco (incluindo inativos)
+    session.expire_all()
+    db_membro = session.get(Membro, membro.id)
+
+    assert db_membro is not None
+    assert db_membro.ativo is False
+    assert db_membro.data_saida is not None
+    assert db_membro.quarto_id is None  # Quarto removido
+
+
+def test_soft_delete_member_removes_from_default_list(  # noqa: PLR0913, PLR0917
+    client, token, republica, membro
+):
+    """Testa que membros inativos não aparecem na listagem padrão."""
+    # Deletar membro
+    client.delete(
+        f'/membros/{republica.id}/{membro.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    # Listar membros (sem incluir inativos)
+    response = client.get(
+        f'/membros/{republica.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.json()
+    assert len(data['members']) == 0
+
+
+def test_soft_delete_member_shows_in_inactive_list(  # noqa: PLR0913, PLR0917
+    client, token, republica, membro
+):
+    """Testa que membros inativos aparecem quando solicitado."""
+    # Deletar membro
+    client.delete(
+        f'/membros/{republica.id}/{membro.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    # Listar membros incluindo inativos
+    response = client.get(
+        f'/membros/{republica.id}?incluir_inativos=true',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.json()
+    assert len(data['members']) == 1
+    assert data['members'][0]['id'] == membro.id
+    assert data['members'][0]['ativo'] is False
+    assert data['members'][0]['data_saida'] is not None
+
+
+def test_soft_delete_liberates_quarto(  # noqa: PLR0913, PLR0917
+    client, token, republica, membro, session
+):
+    """Testa que o soft delete libera o quarto para outro membro."""
+    quarto_id = membro.quarto_id
+
+    # Deletar membro
+    client.delete(
+        f'/membros/{republica.id}/{membro.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    # Tentar criar novo membro no mesmo quarto
+    member_data = {
+        'fullname': 'Novo Membro',
+        'email': 'novo@example.com',
+        'telephone': '11966666666',
+        'quarto_id': quarto_id,
+    }
+
+    response = client.post(
+        f'/membros/{republica.id}',
+        json=member_data,
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    # Deve conseguir criar pois o quarto foi liberado
+    assert response.status_code == HTTPStatus.CREATED
+    assert response.json()['quarto_id'] == quarto_id
+
+
+def test_soft_delete_allows_email_reuse(  # noqa: PLR0913, PLR0917
+    client, token, republica, membro
+):
+    """Testa que o email pode ser reutilizado após soft delete."""
+    old_email = membro.email
+
+    # Deletar membro
+    client.delete(
+        f'/membros/{republica.id}/{membro.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    # Tentar criar novo membro com mesmo email
+    member_data = {
+        'fullname': 'Novo Membro',
+        'email': old_email,
+        'telephone': '11966666666',
+    }
+
+    response = client.post(
+        f'/membros/{republica.id}',
+        json=member_data,
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    # Deve conseguir criar pois o membro antigo está inativo
+    assert response.status_code == HTTPStatus.CREATED
+    assert response.json()['email'] == old_email
+
+
+def test_soft_delete_allows_telephone_reuse(  # noqa: PLR0913, PLR0917
+    client, token, republica, membro
+):
+    """Testa que o telefone pode ser reutilizado após soft delete."""
+    old_telephone = membro.telephone
+
+    # Deletar membro
+    client.delete(
+        f'/membros/{republica.id}/{membro.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    # Tentar criar novo membro com mesmo telefone
+    member_data = {
+        'fullname': 'Novo Membro',
+        'email': 'novo@example.com',
+        'telephone': old_telephone,
+    }
+
+    response = client.post(
+        f'/membros/{republica.id}',
+        json=member_data,
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    # Deve conseguir criar pois o membro antigo está inativo
+    assert response.status_code == HTTPStatus.CREATED
+    assert response.json()['telephone'] == old_telephone
+
+
+def test_soft_delete_preserves_payment_history(  # noqa: PLR0913, PLR0917
+    client, token, republica, membro, session
+):
+    """Testa que o histórico de pagamentos é preservado após soft delete."""
+    from datetime import date, datetime
+
+    # Criar uma despesa
+    despesa = Despesa(
+        descricao='Luz',
+        valor_total=100.0,
+        data_vencimento=date(2024, 1, 31),
+        categoria=TipoDespesa.LUZ,
+        republica_id=republica.id,
+        status=StatusDespesa.PAGO,
+    )
+    session.add(despesa)
+    session.commit()
+    session.refresh(despesa)
+
+    # Criar um pagamento do membro
+    pagamento = Pagamento(
+        valor_pago=100.0,
+        membro_id=membro.id,
+        despesa_id=despesa.id,
+    )
+    session.add(pagamento)
+    session.commit()
+    session.refresh(pagamento)
+    pagamento_id = pagamento.id
+
+    # Deletar membro (soft delete)
+    response = client.delete(
+        f'/membros/{republica.id}/{membro.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+    # Verificar que o pagamento ainda existe no banco
+    session.expire_all()
+    db_pagamento = session.get(Pagamento, pagamento_id)
+
+    assert db_pagamento is not None
+    assert db_pagamento.valor_pago == 100.0
+    assert db_pagamento.membro_id == membro.id
+    assert db_pagamento.despesa_id == despesa.id
+
+    # Verificar que podemos acessar o membro através do pagamento
+    assert db_pagamento.membro is not None
+    assert db_pagamento.membro.id == membro.id
+    assert db_pagamento.membro.ativo is False

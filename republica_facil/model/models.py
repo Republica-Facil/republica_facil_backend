@@ -97,18 +97,22 @@ class Membro:
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
     fullname: Mapped[str]
-    email: Mapped[str] = mapped_column(unique=True)
-    telephone: Mapped[str] = mapped_column(unique=True)
+    email: Mapped[str]
+    telephone: Mapped[str]
+    republica_id: Mapped[int] = mapped_column(ForeignKey('republicas.id'))
+    ativo: Mapped[bool] = mapped_column(default=True)
+    # allow membro to have no quarto (desocupado)
+    quarto_id: Mapped[int | None] = mapped_column(
+        ForeignKey('quartos.id'), nullable=True, default=None
+    )
+    data_saida: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now(), onupdate=func.now()
-    )
-    republica_id: Mapped[int] = mapped_column(ForeignKey('republicas.id'))
-    # allow membro to have no quarto (desocupado)
-    quarto_id: Mapped[int | None] = mapped_column(
-        ForeignKey('quartos.id'), nullable=True, default=None
     )
 
     republica: Mapped[Republica] = relationship(
@@ -118,7 +122,6 @@ class Membro:
     pagamentos: Mapped[list['Pagamento']] = relationship(
         init=False,
         back_populates='membro',
-        cascade='all, delete-orphan',
         lazy='selectin',
     )
 

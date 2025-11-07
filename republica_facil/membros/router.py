@@ -1,10 +1,10 @@
+from datetime import datetime
 from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from republica_facil.database import get_session
@@ -35,6 +35,34 @@ def create_member(
 
     if db_republica:
         if db_republica.user_id == user.id:
+            # Verificar se já existe membro ativo com o mesmo email
+            membro_com_email = session.scalar(
+                select(Membro).where(
+                    Membro.email == member.email,
+                    Membro.ativo == True
+                )
+            )
+            
+            if membro_com_email:
+                raise HTTPException(
+                    status_code=HTTPStatus.CONFLICT,
+                    detail='Membro ja existe'
+                )
+            
+            # Verificar se já existe membro ativo com o mesmo telefone
+            membro_com_telefone = session.scalar(
+                select(Membro).where(
+                    Membro.telephone == member.telephone,
+                    Membro.ativo == True
+                )
+            )
+            
+            if membro_com_telefone:
+                raise HTTPException(
+                    status_code=HTTPStatus.CONFLICT,
+                    detail='Membro ja existe'
+                )
+            
             # Only validate quarto if one is provided
             if member.quarto_id is not None:
                 db_quarto = session.scalar(
@@ -53,9 +81,12 @@ def create_member(
                         detail='Quarto não pertence a esta república',
                     )
 
-                # Verificar se o quarto já tem um membro
+                # Verificar se o quarto já tem um membro ativo
                 membro_existente = session.scalar(
-                    select(Membro).where(Membro.quarto_id == member.quarto_id)
+                    select(Membro).where(
+                        Membro.quarto_id == member.quarto_id,
+                        Membro.ativo == True
+                    )
                 )
 
                 if membro_existente:
@@ -64,24 +95,19 @@ def create_member(
                         detail='Este quarto já está ocupado',
                     )
 
-            try:
-                new_member = Membro(
-                    fullname=member.fullname,
-                    email=member.email,
-                    telephone=member.telephone,
-                    republica_id=republica_id,
-                    quarto_id=member.quarto_id,
-                )
+            new_member = Membro(
+                fullname=member.fullname,
+                email=member.email,
+                telephone=member.telephone,
+                republica_id=republica_id,
+                quarto_id=member.quarto_id,
+            )
 
-                session.add(new_member)
-                session.commit()
-                session.refresh(new_member)
+            session.add(new_member)
+            session.commit()
+            session.refresh(new_member)
 
-                return new_member
-            except IntegrityError:
-                raise HTTPException(
-                    status_code=HTTPStatus.CONFLICT, detail='Membro ja existe'
-                )
+            return new_member
         else:
             raise HTTPException(
                 status_code=HTTPStatus.UNAUTHORIZED,
@@ -105,6 +131,7 @@ def read_members(
     republica_id: int,
     limit=10,
     offset=0,
+    incluir_inativos: bool = False,
 ):
     db_republica = session.scalar(
         select(Republica).where(Republica.id == republica_id)
@@ -112,11 +139,14 @@ def read_members(
 
     if db_republica:
         if db_republica.user_id == user.id:
+            query = select(Membro).where(Membro.republica_id == republica_id)
+            
+            # Por padrão, retorna apenas membros ativos
+            if not incluir_inativos:
+                query = query.where(Membro.ativo == True)
+            
             members = session.scalars(
-                select(Membro)
-                .where(Membro.republica_id == republica_id)
-                .offset(offset)
-                .limit(limit)
+                query.offset(offset).limit(limit)
             )
             return {'members': members}
         else:
@@ -192,6 +222,38 @@ def update_member(  # noqa: PLR1702
                 )
             )
             if db_member:
+                # Verificar se está tentando usar email de outro membro ativo
+                if member.email != db_member.email:
+                    membro_com_email = session.scalar(
+                        select(Membro).where(
+                            Membro.email == member.email,
+                            Membro.ativo == True,
+                            Membro.id != member_id
+                        )
+                    )
+                    
+                    if membro_com_email:
+                        raise HTTPException(
+                            status_code=HTTPStatus.CONFLICT,
+                            detail='Membro ja existe'
+                        )
+                
+                # Verificar se está tentando usar telefone de outro membro ativo
+                if member.telephone != db_member.telephone:
+                    membro_com_telefone = session.scalar(
+                        select(Membro).where(
+                            Membro.telephone == member.telephone,
+                            Membro.ativo == True,
+                            Membro.id != member_id
+                        )
+                    )
+                    
+                    if membro_com_telefone:
+                        raise HTTPException(
+                            status_code=HTTPStatus.CONFLICT,
+                            detail='Membro ja existe'
+                        )
+                
                 # Verifica se está tentando mudar de quarto
                 if member.quarto_id != db_member.quarto_id:
                     # Se quarto_id não é None, validar o novo quarto
@@ -217,6 +279,7 @@ def update_member(  # noqa: PLR1702
                             select(Membro).where(
                                 Membro.quarto_id == member.quarto_id,
                                 Membro.id != member_id,
+                                Membro.ativo == True
                             )
                         )
 
@@ -226,22 +289,15 @@ def update_member(  # noqa: PLR1702
                                 detail='Este quarto já está ocupado',
                             )
 
-                try:
-                    db_member.fullname = member.fullname
-                    db_member.email = member.email
-                    db_member.telephone = member.telephone
-                    db_member.quarto_id = member.quarto_id
+                db_member.fullname = member.fullname
+                db_member.email = member.email
+                db_member.telephone = member.telephone
+                db_member.quarto_id = member.quarto_id
 
-                    session.commit()
-                    session.refresh(db_member)
+                session.commit()
+                session.refresh(db_member)
 
-                    return db_member
-
-                except IntegrityError:
-                    raise HTTPException(
-                        status_code=HTTPStatus.CONFLICT,
-                        detail='Membro ja existe',
-                    )
+                return db_member
         else:
             raise HTTPException(
                 status_code=HTTPStatus.UNAUTHORIZED,
@@ -278,8 +334,13 @@ def delete_member(
             )
             if db_member:
                 try:
-                    session.delete(db_member)
+                    # Soft delete: marca como inativo e registra data de saída
+                    # preservando o histórico financeiro (pagamentos)
+                    db_member.ativo = False
+                    db_member.data_saida = datetime.now()
+                    db_member.quarto_id = None  # Desvincula do quarto
                     session.commit()
+                    session.refresh(db_member)
 
                     return {'message': 'Membro excluido'}
 

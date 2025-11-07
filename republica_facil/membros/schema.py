@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr
@@ -9,11 +10,11 @@ class Member(BaseModel):
     telephone: str
     quarto_id: Optional[int] = None
 
-    # todo member: Member, deve possuir esses atributos
-
 
 class MemberPublic(Member):
     id: int
+    ativo: bool
+    data_saida: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 
