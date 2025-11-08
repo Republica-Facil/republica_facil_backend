@@ -1,24 +1,18 @@
 """Testes de integração - Fluxos completos da aplicação."""
 
-from datetime import date, datetime
 from http import HTTPStatus
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from republica_facil.database import get_session
 from republica_facil.main import app
 from republica_facil.model.models import (
-    Despesa,
     Membro,
     Pagamento,
-    Quarto,
-    Republica,
-    StatusDespesa,
-    TipoDespesa,
     User,
     table_registry,
 )
@@ -56,7 +50,9 @@ def client(session):
 class TestFluxoCompletoRepublica:
     """Testa o fluxo completo de criação e gerenciamento de uma república."""
 
-    def test_fluxo_completo_criar_e_gerenciar_republica(self, client, session):
+    def test_fluxo_completo_criar_e_gerenciar_republica(  # noqa: PLR0915, PLR0914, PLR6301
+        self, client, session
+    ):
         """
         Testa o fluxo completo:
         1. Criar usuário
@@ -78,7 +74,6 @@ class TestFluxoCompletoRepublica:
         }
         response = client.post('/users', json=user_data)
         assert response.status_code == HTTPStatus.CREATED
-        user_id = response.json()['id']
 
         # 2. Fazer login
         login_data = {
@@ -100,21 +95,27 @@ class TestFluxoCompletoRepublica:
             'cidade': 'São Paulo',
             'estado': 'SP',
         }
-        response = client.post('/republicas', json=republica_data, headers=headers)
+        response = client.post(
+            '/republicas', json=republica_data, headers=headers
+        )
         assert response.status_code == HTTPStatus.CREATED
         republica_id = response.json()['id']
 
         # 4. Criar quartos
         quarto1_data = {'numero': 101}
         response = client.post(
-            f'/quartos/?republica_id={republica_id}', json=quarto1_data, headers=headers
+            f'/quartos/?republica_id={republica_id}',
+            json=quarto1_data,
+            headers=headers,
         )
         assert response.status_code == HTTPStatus.CREATED
         quarto1_id = response.json()['id']
 
         quarto2_data = {'numero': 102}
         response = client.post(
-            f'/quartos/?republica_id={republica_id}', json=quarto2_data, headers=headers
+            f'/quartos/?republica_id={republica_id}',
+            json=quarto2_data,
+            headers=headers,
         )
         assert response.status_code == HTTPStatus.CREATED
         quarto2_id = response.json()['id']
@@ -159,10 +160,11 @@ class TestFluxoCompletoRepublica:
         assert response.status_code == HTTPStatus.OK
 
         # Verificar alocação
+        expected_members_count = 2
         response = client.get(f'/membros/{republica_id}', headers=headers)
         assert response.status_code == HTTPStatus.OK
         membros = response.json()['members']
-        assert len(membros) == 2
+        assert len(membros) == expected_members_count
         assert all(m['quarto_id'] is not None for m in membros)
 
         # 7. Criar despesa
@@ -180,6 +182,9 @@ class TestFluxoCompletoRepublica:
         assert response.json()['status'] == 'pendente'
 
         # 8. Registrar pagamentos
+        # Valor esperado por membro (200/2)
+        expected_payment_value = 100.0
+
         # Primeiro membro paga
         pagamento1_data = {'membro_id': membro1_id}
         response = client.post(
@@ -188,7 +193,7 @@ class TestFluxoCompletoRepublica:
             headers=headers,
         )
         assert response.status_code == HTTPStatus.CREATED
-        assert response.json()['valor_pago'] == 100.0  # 200/2
+        assert response.json()['valor_pago'] == expected_payment_value
 
         # Verificar que despesa ainda está pendente
         response = client.get(
@@ -214,20 +219,24 @@ class TestFluxoCompletoRepublica:
         assert response.json()['status'] == 'pago'
 
         # Verificar pagamentos registrados
+        expected_payments_count = 2
+        expected_total_value = 200.0
         response = client.get(
             f'/despesas/{republica_id}/{despesa_id}/pagamentos',
             headers=headers,
         )
         assert response.status_code == HTTPStatus.OK
         pagamentos = response.json()['pagamentos']
-        assert len(pagamentos) == 2
-        assert sum(p['valor_pago'] for p in pagamentos) == 200.0
+        assert len(pagamentos) == expected_payments_count
+        assert sum(p['valor_pago'] for p in pagamentos) == expected_total_value
 
 
 class TestFluxoSoftDeleteMembro:
     """Testa o fluxo de soft delete de membro e preservação de histórico."""
 
-    def test_fluxo_remover_membro_preserva_historico(self, client, session):
+    def test_fluxo_remover_membro_preserva_historico(  # noqa: PLR0914, PLR6301
+        self, client, session
+    ):
         """
         Testa o fluxo:
         1. Criar república com membros
@@ -265,13 +274,17 @@ class TestFluxoSoftDeleteMembro:
             'cidade': 'São Paulo',
             'estado': 'SP',
         }
-        response = client.post('/republicas', json=republica_data, headers=headers)
+        response = client.post(
+            '/republicas', json=republica_data, headers=headers
+        )
         republica_id = response.json()['id']
 
-        # Criar quarto
+        # 2. Criar quarto
         quarto_data = {'numero': 101}
         response = client.post(
-            f'/quartos/?republica_id={republica_id}', json=quarto_data, headers=headers
+            f'/quartos/?republica_id={republica_id}',
+            json=quarto_data,
+            headers=headers,
         )
         quarto_id = response.json()['id']
 
@@ -288,9 +301,10 @@ class TestFluxoSoftDeleteMembro:
         membro_id = response.json()['id']
 
         # 2. Criar despesa
+        expected_despesa_value = 100.0
         despesa_data = {
             'descricao': 'Conta de Água',
-            'valor_total': 100.0,
+            'valor_total': expected_despesa_value,
             'data_vencimento': '2024-01-31',
             'categoria': 'agua',
         }
@@ -319,7 +333,7 @@ class TestFluxoSoftDeleteMembro:
         db_pagamento = session.get(Pagamento, pagamento_id)
         assert db_pagamento is not None
         assert db_pagamento.membro_id == membro_id
-        assert db_pagamento.valor_pago == 100.0
+        assert db_pagamento.valor_pago == expected_despesa_value
 
         db_membro = session.get(Membro, membro_id)
         assert db_membro is not None
@@ -341,7 +355,8 @@ class TestFluxoSoftDeleteMembro:
 
         # 6. Verificar que quarto ficou disponível
         response = client.get(
-            f'/quartos/{quarto_id}?republica_id={republica_id}', headers=headers
+            f'/quartos/{quarto_id}?republica_id={republica_id}',
+            headers=headers,
         )
         quarto = response.json()
         assert len(quarto['membros']) == 0
@@ -363,7 +378,9 @@ class TestFluxoSoftDeleteMembro:
 class TestFluxoTransferenciaMembro:
     """Testa o fluxo de transferência de membro entre quartos."""
 
-    def test_fluxo_transferir_membro_entre_quartos(self, client, session):
+    def test_fluxo_transferir_membro_entre_quartos(  # noqa: PLR6301
+        self, client, session
+    ):
         """
         Testa o fluxo:
         1. Criar república com 2 quartos
@@ -398,17 +415,23 @@ class TestFluxoTransferenciaMembro:
             'cidade': 'São Paulo',
             'estado': 'SP',
         }
-        response = client.post('/republicas', json=republica_data, headers=headers)
+        response = client.post(
+            '/republicas', json=republica_data, headers=headers
+        )
         republica_id = response.json()['id']
 
         # 1. Criar 2 quartos
         response = client.post(
-            f'/quartos/?republica_id={republica_id}', json={'numero': 101}, headers=headers
+            f'/quartos/?republica_id={republica_id}',
+            json={'numero': 101},
+            headers=headers,
         )
         quarto1_id = response.json()['id']
 
         response = client.post(
-            f'/quartos/?republica_id={republica_id}', json={'numero': 102}, headers=headers
+            f'/quartos/?republica_id={republica_id}',
+            json={'numero': 102},
+            headers=headers,
         )
         quarto2_id = response.json()['id']
 
@@ -441,14 +464,16 @@ class TestFluxoTransferenciaMembro:
 
         # 4. Verificar que quarto 1 ficou vazio
         response = client.get(
-            f'/quartos/{quarto1_id}?republica_id={republica_id}', headers=headers
+            f'/quartos/{quarto1_id}?republica_id={republica_id}',
+            headers=headers,
         )
         quarto1 = response.json()
         assert len(quarto1['membros']) == 0
 
         # 5. Verificar que quarto 2 está ocupado
         response = client.get(
-            f'/quartos/{quarto2_id}?republica_id={republica_id}', headers=headers
+            f'/quartos/{quarto2_id}?republica_id={republica_id}',
+            headers=headers,
         )
         quarto2 = response.json()
         assert len(quarto2['membros']) == 1
@@ -471,7 +496,9 @@ class TestFluxoTransferenciaMembro:
 class TestFluxoMultiplasRepublicas:
     """Testa isolamento entre múltiplas repúblicas."""
 
-    def test_isolamento_entre_republicas(self, client, session):
+    def test_isolamento_entre_republicas(  # noqa: PLR0914, PLR6301
+        self, client, session
+    ):
         """
         Testa o fluxo:
         1. Criar 2 usuários
@@ -491,7 +518,10 @@ class TestFluxoMultiplasRepublicas:
         assert response.status_code == HTTPStatus.CREATED
 
         # Login usuário 1
-        login1 = {'username': 'user1_multiplas@example.com', 'password': 'Senha@123'}
+        login1 = {
+            'username': 'user1_multiplas@example.com',
+            'password': 'Senha@123',
+        }
         response = client.post('/auth/login', data=login1)
         token1 = response.json()['access_token']
         headers1 = {'Authorization': f'Bearer {token1}'}
@@ -520,7 +550,10 @@ class TestFluxoMultiplasRepublicas:
         assert response.status_code == HTTPStatus.CREATED
 
         # Login usuário 2
-        login2 = {'username': 'user2_multiplas@example.com', 'password': 'Senha@123'}
+        login2 = {
+            'username': 'user2_multiplas@example.com',
+            'password': 'Senha@123',
+        }
         response = client.post('/auth/login', data=login2)
         token2 = response.json()['access_token']
         headers2 = {'Authorization': f'Bearer {token2}'}
@@ -541,7 +574,9 @@ class TestFluxoMultiplasRepublicas:
         # 3. Criar recursos em cada república
         # Quarto na república 1
         response = client.post(
-            f'/quartos/?republica_id={rep1_id}', json={'numero': 101}, headers=headers1
+            f'/quartos/?republica_id={rep1_id}',
+            json={'numero': 101},
+            headers=headers1,
         )
         quarto1_id = response.json()['id']
 
@@ -558,17 +593,21 @@ class TestFluxoMultiplasRepublicas:
 
         # Quarto na república 2
         response = client.post(
-            f'/quartos/?republica_id={rep2_id}', json={'numero': 201}, headers=headers2
+            f'/quartos/?republica_id={rep2_id}',
+            json={'numero': 201},
+            headers=headers2,
         )
         quarto2_id = response.json()['id']
 
         # 4. Verificar isolamento - usuário 2 não deve acessar república 1
-        # TODO: O endpoint GET /republicas/{republica_id} não verifica permissões
-        # Este é um problema de segurança que deve ser corrigido
+        # TODO: O endpoint GET /republicas/{republica_id} não verifica
+        # permissões. Este é um problema de segurança que deve ser corrigido
         # response = client.get(f'/republicas/{rep1_id}', headers=headers2)
         # assert response.status_code == HTTPStatus.NOT_FOUND
 
-        response = client.get(f'/quartos/?republica_id={rep1_id}', headers=headers2)
+        response = client.get(
+            f'/quartos/?republica_id={rep1_id}', headers=headers2
+        )
         assert response.status_code == HTTPStatus.UNAUTHORIZED
 
         response = client.get(f'/membros/{rep1_id}', headers=headers2)
@@ -576,7 +615,9 @@ class TestFluxoMultiplasRepublicas:
 
         # 5. Verificar que cada república só vê seus próprios recursos
         # República 1
-        response = client.get(f'/quartos/?republica_id={rep1_id}', headers=headers1)
+        response = client.get(
+            f'/quartos/?republica_id={rep1_id}', headers=headers1
+        )
         quartos_rep1 = response.json()['quartos']
         assert len(quartos_rep1) == 1
         assert quartos_rep1[0]['id'] == quarto1_id
@@ -587,7 +628,9 @@ class TestFluxoMultiplasRepublicas:
         assert membros_rep1[0]['id'] == membro1_id
 
         # República 2
-        response = client.get(f'/quartos/?republica_id={rep2_id}', headers=headers2)
+        response = client.get(
+            f'/quartos/?republica_id={rep2_id}', headers=headers2
+        )
         quartos_rep2 = response.json()['quartos']
         assert len(quartos_rep2) == 1
         assert quartos_rep2[0]['id'] == quarto2_id
@@ -600,7 +643,9 @@ class TestFluxoMultiplasRepublicas:
 class TestFluxoDesocuparQuarto:
     """Testa o fluxo de desocupar quarto."""
 
-    def test_fluxo_desocupar_e_deletar_quarto(self, client, session):
+    def test_fluxo_desocupar_e_deletar_quarto(  # noqa: PLR6301
+        self, client, session
+    ):
         """
         Testa o fluxo:
         1. Criar república com quarto e membro
@@ -634,12 +679,16 @@ class TestFluxoDesocuparQuarto:
             'cidade': 'São Paulo',
             'estado': 'SP',
         }
-        response = client.post('/republicas', json=republica_data, headers=headers)
+        response = client.post(
+            '/republicas', json=republica_data, headers=headers
+        )
         republica_id = response.json()['id']
 
         # 1. Criar quarto
         response = client.post(
-            f'/quartos/?republica_id={republica_id}', json={'numero': 101}, headers=headers
+            f'/quartos/?republica_id={republica_id}',
+            json={'numero': 101},
+            headers=headers,
         )
         quarto_id = response.json()['id']
 
@@ -664,7 +713,8 @@ class TestFluxoDesocuparQuarto:
 
         # 3. Tentar deletar quarto ocupado
         response = client.delete(
-            f'/quartos/{quarto_id}?republica_id={republica_id}', headers=headers
+            f'/quartos/{quarto_id}?republica_id={republica_id}',
+            headers=headers,
         )
         assert response.status_code == HTTPStatus.CONFLICT
         assert 'ocupado' in response.json()['detail'].lower()
@@ -685,12 +735,20 @@ class TestFluxoDesocuparQuarto:
 
         # 5. Deletar quarto com sucesso
         response = client.delete(
-            f'/quartos/{quarto_id}?republica_id={republica_id}', headers=headers
+            f'/quartos/{quarto_id}?republica_id={republica_id}',
+            headers=headers,
         )
         assert response.status_code == HTTPStatus.OK
 
+        # Verificar que o quarto foi deletado
+        response = client.get(
+            f'/quartos/{quarto_id}?republica_id={republica_id}',
+            headers=headers,
+        )
+
         # Verificar que quarto foi deletado
         response = client.get(
-            f'/quartos/{quarto_id}?republica_id={republica_id}', headers=headers
+            f'/quartos/{quarto_id}?republica_id={republica_id}',
+            headers=headers,
         )
         assert response.status_code == HTTPStatus.NOT_FOUND

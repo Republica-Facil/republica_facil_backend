@@ -38,31 +38,27 @@ def create_member(
             # Verificar se já existe membro ativo com o mesmo email
             membro_com_email = session.scalar(
                 select(Membro).where(
-                    Membro.email == member.email,
-                    Membro.ativo == True
+                    Membro.email == member.email, Membro.ativo
                 )
             )
-            
+
             if membro_com_email:
                 raise HTTPException(
-                    status_code=HTTPStatus.CONFLICT,
-                    detail='Membro ja existe'
+                    status_code=HTTPStatus.CONFLICT, detail='Membro ja existe'
                 )
-            
+
             # Verificar se já existe membro ativo com o mesmo telefone
             membro_com_telefone = session.scalar(
                 select(Membro).where(
-                    Membro.telephone == member.telephone,
-                    Membro.ativo == True
+                    Membro.telephone == member.telephone, Membro.ativo
                 )
             )
-            
+
             if membro_com_telefone:
                 raise HTTPException(
-                    status_code=HTTPStatus.CONFLICT,
-                    detail='Membro ja existe'
+                    status_code=HTTPStatus.CONFLICT, detail='Membro ja existe'
                 )
-            
+
             # Only validate quarto if one is provided
             if member.quarto_id is not None:
                 db_quarto = session.scalar(
@@ -84,8 +80,7 @@ def create_member(
                 # Verificar se o quarto já tem um membro ativo
                 membro_existente = session.scalar(
                     select(Membro).where(
-                        Membro.quarto_id == member.quarto_id,
-                        Membro.ativo == True
+                        Membro.quarto_id == member.quarto_id, Membro.ativo
                     )
                 )
 
@@ -125,7 +120,7 @@ def create_member(
     response_class=JSONResponse,
     response_model=ListMember,
 )
-def read_members(
+def read_members(  # noqa: PLR0913, PLR0917
     session: T_Session,
     user: CurrentUser,
     republica_id: int,
@@ -140,14 +135,12 @@ def read_members(
     if db_republica:
         if db_republica.user_id == user.id:
             query = select(Membro).where(Membro.republica_id == republica_id)
-            
+
             # Por padrão, retorna apenas membros ativos
             if not incluir_inativos:
-                query = query.where(Membro.ativo == True)
-            
-            members = session.scalars(
-                query.offset(offset).limit(limit)
-            )
+                query = query.where(Membro.ativo)
+
+            members = session.scalars(query.offset(offset).limit(limit))
             return {'members': members}
         else:
             raise HTTPException(
@@ -203,7 +196,7 @@ def read_member(
     response_class=JSONResponse,
     response_model=MemberPublic,
 )
-def update_member(  # noqa: PLR1702
+def update_member(  # noqa: PLR1702, PLR0912
     member: Member,
     session: T_Session,
     user: CurrentUser,
@@ -227,33 +220,34 @@ def update_member(  # noqa: PLR1702
                     membro_com_email = session.scalar(
                         select(Membro).where(
                             Membro.email == member.email,
-                            Membro.ativo == True,
-                            Membro.id != member_id
+                            Membro.ativo,
+                            Membro.id != member_id,
                         )
                     )
-                    
+
                     if membro_com_email:
                         raise HTTPException(
                             status_code=HTTPStatus.CONFLICT,
-                            detail='Membro ja existe'
+                            detail='Membro ja existe',
                         )
-                
-                # Verificar se está tentando usar telefone de outro membro ativo
+
+                # Verificar se está tentando usar telefone de outro
+                # membro ativo
                 if member.telephone != db_member.telephone:
                     membro_com_telefone = session.scalar(
                         select(Membro).where(
                             Membro.telephone == member.telephone,
-                            Membro.ativo == True,
-                            Membro.id != member_id
+                            Membro.ativo,
+                            Membro.id != member_id,
                         )
                     )
-                    
+
                     if membro_com_telefone:
                         raise HTTPException(
                             status_code=HTTPStatus.CONFLICT,
-                            detail='Membro ja existe'
+                            detail='Membro ja existe',
                         )
-                
+
                 # Verifica se está tentando mudar de quarto
                 if member.quarto_id != db_member.quarto_id:
                     # Se quarto_id não é None, validar o novo quarto
@@ -279,7 +273,7 @@ def update_member(  # noqa: PLR1702
                             select(Membro).where(
                                 Membro.quarto_id == member.quarto_id,
                                 Membro.id != member_id,
-                                Membro.ativo == True
+                                Membro.ativo,
                             )
                         )
 

@@ -944,12 +944,15 @@ def test_soft_delete_preserves_payment_history(  # noqa: PLR0913, PLR0917
     client, token, republica, membro, session
 ):
     """Testa que o histórico de pagamentos é preservado após soft delete."""
-    from datetime import date, datetime
+    from datetime import date  # noqa: PLC0415
+
+    # Valor esperado do pagamento
+    expected_payment = 100.0
 
     # Criar uma despesa
     despesa = Despesa(
         descricao='Luz',
-        valor_total=100.0,
+        valor_total=expected_payment,
         data_vencimento=date(2024, 1, 31),
         categoria=TipoDespesa.LUZ,
         republica_id=republica.id,
@@ -961,7 +964,7 @@ def test_soft_delete_preserves_payment_history(  # noqa: PLR0913, PLR0917
 
     # Criar um pagamento do membro
     pagamento = Pagamento(
-        valor_pago=100.0,
+        valor_pago=expected_payment,
         membro_id=membro.id,
         despesa_id=despesa.id,
     )
@@ -983,7 +986,7 @@ def test_soft_delete_preserves_payment_history(  # noqa: PLR0913, PLR0917
     db_pagamento = session.get(Pagamento, pagamento_id)
 
     assert db_pagamento is not None
-    assert db_pagamento.valor_pago == 100.0
+    assert db_pagamento.valor_pago == expected_payment
     assert db_pagamento.membro_id == membro.id
     assert db_pagamento.despesa_id == despesa.id
 
