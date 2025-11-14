@@ -303,7 +303,7 @@ def update_member(  # noqa: PLR1702, PLR0912
     )
 
 
-@router.delete(
+@router.patch(
     '/{republica_id}/{member_id}',
     status_code=HTTPStatus.OK,
     response_class=JSONResponse,

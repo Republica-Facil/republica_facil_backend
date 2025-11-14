@@ -736,7 +736,7 @@ def test_update_member_unauthorized(client, other_token, republica, membro):
 
 def test_delete_member_success(client, token, republica, membro):
     """Testa exclusão de membro com sucesso."""
-    response = client.delete(
+    response = client.patch(
         f'/membros/{republica.id}/{membro.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
@@ -748,7 +748,7 @@ def test_delete_member_success(client, token, republica, membro):
 
 def test_delete_member_republica_not_found(client, token, membro):
     """Testa exclusão de membro em república inexistente."""
-    response = client.delete(
+    response = client.patch(
         f'/membros/999/{membro.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
@@ -759,7 +759,7 @@ def test_delete_member_republica_not_found(client, token, membro):
 
 def test_delete_member_unauthorized(client, other_token, republica, membro):
     """Testa exclusão de membro por usuário não autorizado."""
-    response = client.delete(
+    response = client.patch(
         f'/membros/{republica.id}/{membro.id}',
         headers={'Authorization': f'Bearer {other_token}'},
     )
@@ -770,7 +770,7 @@ def test_delete_member_unauthorized(client, other_token, republica, membro):
 
 def test_delete_member_not_found(client, token, republica):
     """Testa exclusão de membro inexistente."""
-    response = client.delete(
+    response = client.patch(
         f'/membros/{republica.id}/999',
         headers={'Authorization': f'Bearer {token}'},
     )
@@ -787,7 +787,7 @@ def test_soft_delete_member_preserves_in_database(  # noqa: PLR0913, PLR0917
 ):
     """Testa que o soft delete preserva o membro no banco de dados."""
     # Deletar membro
-    response = client.delete(
+    response = client.patch(
         f'/membros/{republica.id}/{membro.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
@@ -809,7 +809,7 @@ def test_soft_delete_member_removes_from_default_list(  # noqa: PLR0913, PLR0917
 ):
     """Testa que membros inativos não aparecem na listagem padrão."""
     # Deletar membro
-    client.delete(
+    client.patch(
         f'/membros/{republica.id}/{membro.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
@@ -830,7 +830,7 @@ def test_soft_delete_member_shows_in_inactive_list(  # noqa: PLR0913, PLR0917
 ):
     """Testa que membros inativos aparecem quando solicitado."""
     # Deletar membro
-    client.delete(
+    client.patch(
         f'/membros/{republica.id}/{membro.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
@@ -856,7 +856,7 @@ def test_soft_delete_liberates_quarto(  # noqa: PLR0913, PLR0917
     quarto_id = membro.quarto_id
 
     # Deletar membro
-    client.delete(
+    client.patch(
         f'/membros/{republica.id}/{membro.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
@@ -887,7 +887,7 @@ def test_soft_delete_allows_email_reuse(  # noqa: PLR0913, PLR0917
     old_email = membro.email
 
     # Deletar membro
-    client.delete(
+    client.patch(
         f'/membros/{republica.id}/{membro.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
@@ -917,7 +917,7 @@ def test_soft_delete_allows_telephone_reuse(  # noqa: PLR0913, PLR0917
     old_telephone = membro.telephone
 
     # Deletar membro
-    client.delete(
+    client.patch(
         f'/membros/{republica.id}/{membro.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
@@ -974,7 +974,7 @@ def test_soft_delete_preserves_payment_history(  # noqa: PLR0913, PLR0917
     pagamento_id = pagamento.id
 
     # Deletar membro (soft delete)
-    response = client.delete(
+    response = client.patch(
         f'/membros/{republica.id}/{membro.id}',
         headers={'Authorization': f'Bearer {token}'},
     )

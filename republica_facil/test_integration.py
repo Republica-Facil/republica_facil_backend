@@ -324,7 +324,7 @@ class TestFluxoSoftDeleteMembro:
         pagamento_id = response.json()['id']
 
         # 3. Remover membro (soft delete)
-        response = client.delete(
+        response = client.patch(
             f'/membros/{republica_id}/{membro_id}', headers=headers
         )
         assert response.status_code == HTTPStatus.OK
