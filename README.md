@@ -2,14 +2,14 @@
 
 API REST para gerenciamento de repúblicas estudantis.
 
-## 🛠️ Stack
+## Stack
 
 - Python 3.13 + FastAPI
 - PostgreSQL 16 + SQLAlchemy
 - Redis 7
 - Docker
 
-## 📦 Pré-requisitos
+## Pré-requisitos
 
 - [Docker](https://docs.docker.com/get-docker/) e [Docker Compose](https://docs.docker.com/compose/install/)
 - [Python 3.13+](https://www.python.org/downloads/) (apenas para desenvolvimento local)
@@ -25,7 +25,7 @@ curl -sSL https://install.python-poetry.org | python3 -
 pipx install poetry
 ```
 
-## 🚀 Como Rodar
+## Como Rodar
 
 ### Com Docker (Recomendado)
 
@@ -46,14 +46,14 @@ docker compose exec backend alembic upgrade head
 
 ```
 
-## 🧪 Testes
+## Testes
 
 ```bash
 
 poetry run task test
 ```
 
-## 📚 Documentação
+## Documentação
 
 - **Swagger:** http://localhost:8000/docs
 - **ReDoc:** http://localhost:8000/redoc
