@@ -60,9 +60,7 @@ jobs:
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
       ALGORITHM: ${{ secrets.ALGORITHM }}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
-      REDIS_HOST: ${{ secrets.REDIS_HOST }}
-      REDIS_PORT: ${{ secrets.REDIS_PORT }}
-      REDIS_DB: ${{ secrets.REDIS_DB }}
+      REDIS_URL: redis://localhost:6379/0
       FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
       EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
       SMTP_PORT: ${{ secrets.SMTP_PORT }}

@@ -1,6 +1,7 @@
 """Testes para o módulo de autenticação."""
 
 from http import HTTPStatus
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -173,8 +174,14 @@ def test_login_case_sensitive_username(client, user):
     assert 'Incorrect email or password' in response.json()['detail']
 
 
-def test_forgot_password_success(client, user):
+def test_forgot_password_success(client, user, monkeypatch):
     """Testa solicitação de código de reset para email existente."""
+    mock_redis = MagicMock()
+    monkeypatch.setattr(service_module, 'redis_client', mock_redis)
+    monkeypatch.setattr(
+        service_module, 'send_code_email', lambda *args, **kwargs: None
+    )
+
     response = client.post(
         '/auth/forgot-password',
         json={'email': user.email},
@@ -185,7 +192,10 @@ def test_forgot_password_success(client, user):
     assert 'reset code has been sent' in data['message'].lower()
 
 
-def test_forgot_password_nonexistent_email(client):
+def test_forgot_password_nonexistent_email(client, monkeypatch):
+    mock_redis = MagicMock()
+    monkeypatch.setattr(service_module, 'redis_client', mock_redis)
+
     response = client.post(
         '/auth/forgot-password',
         json={'email': 'nonexistent@example.com'},

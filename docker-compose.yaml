@@ -11,8 +11,7 @@ services:
      - "8000:8000"
     environment:
       DATABASE_URL: postgresql+psycopg://admin:admin@db:5432/db_republica_facil
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
