@@ -2,7 +2,6 @@ version: "3.8"
 
 services:
   backend:
-    entrypoint: ./entrypoint.sh
     build: .
     container_name: republica_facil_backend
     env_file:
