@@ -6,7 +6,6 @@ from republica_facil.despesas import router as despesa
 from republica_facil.membros import router as membro
 from republica_facil.quartos import router as quarto
 from republica_facil.republicas import router as republica
-from republica_facil.settings import Settings
 from republica_facil.usuarios import router as user
 
 app = FastAPI()
@@ -14,10 +13,7 @@ app = FastAPI()
 # Configuração de CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        Settings().LOCALHOST_FRONTEND,
-        Settings().LOCALHOST_FRONTEND_ADDRESS,
-    ],
+    allow_origins=['*'],
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
