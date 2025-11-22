@@ -232,7 +232,7 @@ def test_forgot_password_redis_error(client, user, monkeypatch):
 
     class MockRedisError:
         @staticmethod
-        def setr(key, value, ex):
+        def set(key, value, ex=None):
             raise Exception('Redis connection error')
 
     monkeypatch.setattr(service_module, 'redis_client', MockRedisError())

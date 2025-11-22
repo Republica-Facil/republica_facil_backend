@@ -38,15 +38,21 @@ def request_password_reset_code(db: Session, email: str):
         redis_key = f'reset_code:{email}'
 
         try:
-            redis_client.set(redis_key, reset_code, ttl_seconds)
-
-            send_code_email(email=email, code=reset_code, name=user.fullname)
-
-        except Exception as e:
+            redis_client.set(redis_key, reset_code, ex=ttl_seconds)
+        except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f'Erro no serviço de cache: {e}',
-            )
+                detail=f'Erro no serviço de cache: {exc}',
+            ) from exc
+
+        try:
+            send_code_email(email=email, code=reset_code, name=user.fullname)
+        except Exception as exc:
+            redis_client.delete(redis_key)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f'Erro ao enviar código: {exc}',
+            ) from exc
 
 
 def send_code_email(email: str, code: str, name: str = ''):
