@@ -78,12 +78,14 @@ def send_code_email(email: str, code: str, name: str = '') -> None:
 
     mime_multipart.attach(body_email)
 
-    with smtplib.SMTP(Settings().SMTP_SERVER, Settings().SMTP_PORT) as server:
-        server.ehlo()
-        server.starttls()
-        server.login(Settings().FROM_EMAIL, Settings().EMAIL_PASSWORD)
-        server.send_message(mime_multipart)
-        print('E-mail enviado com sucesso!')
+    with smtplib.SMTP(
+        Settings().SMTP_SERVER, Settings().SMTP_PORT, timeout=10
+    ) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(Settings().FROM_EMAIL, Settings().EMAIL_PASSWORD)
+            server.send_message(mime_multipart)
+            print('E-mail enviado com sucesso!')
 
 
 def send_code_email_task(
