@@ -13,7 +13,14 @@ def get_session():  # pragma: no cover
 
 
 try:  # pragma: no cover
-    redis_client = redis.from_url(Settings().REDIS_URL, decode_responses=True)
+    redis_client = redis.from_url(
+        Settings().REDIS_URL,
+        decode_responses=True,
+        socket_connect_timeout=3,
+        socket_timeout=3,
+        retry_on_timeout=True,
+        health_check_interval=30,
+    )
     redis_client.ping()  # pragma: no cover
     print('Conectado ao Redis com sucesso!')  # pragma: no cover
 except redis.exceptions.ConnectionError as e:  # pragma: no cover
