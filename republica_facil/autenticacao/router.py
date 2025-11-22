@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 from republica_facil.autenticacao import schema, service
-from republica_facil.database import redis_client
+from republica_facil.database import get_redis_client
 from republica_facil.model.models import User
 from republica_facil.security import (
     T_Session,
@@ -73,14 +73,16 @@ def verify_code(request: schema.VerifyCodeSchema):
     """
     ROTA 2: Verifica o código de reset e retorna um JWT especial.
     """
-    if not redis_client:
+    client = get_redis_client()
+
+    if not client:
         raise HTTPException(
             status_code=HTTPStatus.SERVICE_UNAVAILABLE,
             detail='Service unavailable',
         )
 
     redis_key = f'reset_code:{request.email}'
-    saved_code = redis_client.get(redis_key)
+    saved_code = client.get(redis_key)
 
     if not saved_code or saved_code != request.code:
         raise HTTPException(
@@ -88,7 +90,7 @@ def verify_code(request: schema.VerifyCodeSchema):
             detail='Invalid or expired code.',
         )
 
-    redis_client.delete(redis_key)
+    client.delete(redis_key)
 
     # 3. Crie o Token JWT especial (com "scope")
     reset_jwt = create_access_token(

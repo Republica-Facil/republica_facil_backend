@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from republica_facil.database import redis_client
+from republica_facil.database import get_redis_client
 from republica_facil.model.models import User
 from republica_facil.settings import Settings
 
@@ -22,7 +22,9 @@ def request_password_reset_code(db: Session, email: str):
     3. Salva no Redis com TTL
     4. Envia por email (simulado)
     """
-    if not redis_client:
+    client = get_redis_client()
+
+    if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail='Service unavailable',
@@ -38,7 +40,7 @@ def request_password_reset_code(db: Session, email: str):
         redis_key = f'reset_code:{email}'
 
         try:
-            redis_client.set(redis_key, reset_code, ex=ttl_seconds)
+            client.set(redis_key, reset_code, ex=ttl_seconds)
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -48,7 +50,7 @@ def request_password_reset_code(db: Session, email: str):
         try:
             send_code_email(email=email, code=reset_code, name=user.fullname)
         except Exception as exc:
-            redis_client.delete(redis_key)
+            client.delete(redis_key)
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f'Erro ao enviar código: {exc}',

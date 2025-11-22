@@ -1,3 +1,5 @@
+from typing import Optional
+
 import redis
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -12,8 +14,11 @@ def get_session():  # pragma: no cover
         yield session  # pragma: no cover
 
 
-try:  # pragma: no cover
-    redis_client = redis.from_url(
+_redis_client: Optional[redis.Redis] = None
+
+
+def _build_redis_client() -> redis.Redis:
+    return redis.from_url(
         Settings().REDIS_URL,
         decode_responses=True,
         socket_connect_timeout=3,
@@ -21,8 +26,33 @@ try:  # pragma: no cover
         retry_on_timeout=True,
         health_check_interval=30,
     )
-    redis_client.ping()  # pragma: no cover
-    print('Conectado ao Redis com sucesso!')  # pragma: no cover
-except redis.exceptions.ConnectionError as e:  # pragma: no cover
-    print(f'Erro ao conectar ao Redis: {e}')  # pragma: no cover
-    redis_client = None  # pragma: no cover
+
+
+def get_redis_client() -> Optional[redis.Redis]:
+    """Return a cached Redis client, reconnecting if necessary."""
+
+    global _redis_client
+
+    if _redis_client is not None:
+        return _redis_client
+
+    try:
+        client = _build_redis_client()
+        client.ping()  # pragma: no cover
+        print('Conectado ao Redis com sucesso!')  # pragma: no cover
+        _redis_client = client
+    except redis.exceptions.RedisError as exc:  # pragma: no cover
+        print(f'Erro ao conectar ao Redis: {exc}')  # pragma: no cover
+        _redis_client = None
+
+    return _redis_client
+
+
+def reset_redis_client() -> None:
+    """Force the next call to get_redis_client to reconnect."""
+
+    global _redis_client
+    _redis_client = None
+
+
+redis_client = get_redis_client()

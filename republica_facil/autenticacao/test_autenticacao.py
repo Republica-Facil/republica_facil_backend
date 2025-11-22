@@ -177,7 +177,7 @@ def test_login_case_sensitive_username(client, user):
 def test_forgot_password_success(client, user, monkeypatch):
     """Testa solicitação de código de reset para email existente."""
     mock_redis = MagicMock()
-    monkeypatch.setattr(service_module, 'redis_client', mock_redis)
+    monkeypatch.setattr(service_module, 'get_redis_client', lambda: mock_redis)
     monkeypatch.setattr(
         service_module, 'send_code_email', lambda *args, **kwargs: None
     )
@@ -194,7 +194,7 @@ def test_forgot_password_success(client, user, monkeypatch):
 
 def test_forgot_password_nonexistent_email(client, monkeypatch):
     mock_redis = MagicMock()
-    monkeypatch.setattr(service_module, 'redis_client', mock_redis)
+    monkeypatch.setattr(service_module, 'get_redis_client', lambda: mock_redis)
 
     response = client.post(
         '/auth/forgot-password',
@@ -216,7 +216,7 @@ def test_forgot_password_invalid_email_format(client):
 def test_forgot_password_redis_unavailable(client, user, monkeypatch):
     """Testa forgot-password quando Redis não está disponível."""
 
-    monkeypatch.setattr(service_module, 'redis_client', None)
+    monkeypatch.setattr(service_module, 'get_redis_client', lambda: None)
 
     response = client.post(
         '/auth/forgot-password',
@@ -235,7 +235,9 @@ def test_forgot_password_redis_error(client, user, monkeypatch):
         def set(key, value, ex=None):
             raise Exception('Redis connection error')
 
-    monkeypatch.setattr(service_module, 'redis_client', MockRedisError())
+    monkeypatch.setattr(
+        service_module, 'get_redis_client', lambda: MockRedisError()
+    )
 
     response = client.post(
         '/auth/forgot-password',
@@ -313,7 +315,7 @@ def test_verify_code_redis_unavailable(client, user, monkeypatch):
     """Testa verificação quando o Redis não está disponível."""
     # Simular que redis_client é None
 
-    monkeypatch.setattr(router_module, 'redis_client', None)
+    monkeypatch.setattr(router_module, 'get_redis_client', lambda: None)
 
     response = client.post(
         '/auth/verify-code',
