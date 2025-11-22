@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -56,14 +56,17 @@ def login_for_access_token(session: T_Session, form_data: OAuth2Form):
 
 @router.post('/forgot-password', status_code=HTTPStatus.OK)
 def forgot_password(
-    request: schema.ForgotPasswordSchema,  # Valida o JSON de entrada
+    request: schema.ForgotPasswordSchema,
+    background_tasks: BackgroundTasks,
     db: T_Session,
 ):
     """
     Endpoint para solicitar um código de redefinição de senha.
     """
     # Chama o serviço para fazer todo o trabalho
-    service.request_password_reset_code(db, email=request.email)
+    service.request_password_reset_code(
+        db, email=request.email, background_tasks=background_tasks
+    )
 
     return {'message': 'if the email exists, a reset code has been sent'}
 
