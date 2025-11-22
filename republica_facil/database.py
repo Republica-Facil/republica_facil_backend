@@ -14,9 +14,6 @@ def get_session():  # pragma: no cover
         yield session  # pragma: no cover
 
 
-_redis_client: Optional[redis.Redis] = None
-
-
 def _build_redis_client() -> redis.Redis:
     return redis.from_url(
         Settings().REDIS_URL,
@@ -31,28 +28,42 @@ def _build_redis_client() -> redis.Redis:
 def get_redis_client() -> Optional[redis.Redis]:
     """Return a cached Redis client, reconnecting if necessary."""
 
-    global _redis_client
+    cached_client = _redis_client_cache.get()
 
-    if _redis_client is not None:
-        return _redis_client
+    if cached_client is not None:
+        return cached_client
 
     try:
         client = _build_redis_client()
         client.ping()  # pragma: no cover
         print('Conectado ao Redis com sucesso!')  # pragma: no cover
-        _redis_client = client
     except redis.exceptions.RedisError as exc:  # pragma: no cover
         print(f'Erro ao conectar ao Redis: {exc}')  # pragma: no cover
-        _redis_client = None
+        _redis_client_cache.set(None)
+        return None
 
-    return _redis_client
+    _redis_client_cache.set(client)
+    return client
+
+
+class _RedisClientCache:
+    def __init__(self) -> None:
+        self._client: Optional[redis.Redis] = None
+
+    def get(self) -> Optional[redis.Redis]:
+        return self._client
+
+    def set(self, client: Optional[redis.Redis]) -> None:
+        self._client = client
+
+
+_redis_client_cache = _RedisClientCache()
 
 
 def reset_redis_client() -> None:
     """Force the next call to get_redis_client to reconnect."""
 
-    global _redis_client
-    _redis_client = None
+    _redis_client_cache.set(None)
 
 
 redis_client = get_redis_client()

@@ -179,7 +179,7 @@ def test_forgot_password_success(client, user, monkeypatch):
     mock_redis = MagicMock()
     monkeypatch.setattr(service_module, 'get_redis_client', lambda: mock_redis)
     monkeypatch.setattr(
-        service_module, 'send_code_email', lambda *args, **kwargs: None
+        service_module, 'send_code_email_task', lambda *args, **kwargs: None
     )
 
     response = client.post(
@@ -235,9 +235,10 @@ def test_forgot_password_redis_error(client, user, monkeypatch):
         def set(key, value, ex=None):
             raise Exception('Redis connection error')
 
-    monkeypatch.setattr(
-        service_module, 'get_redis_client', lambda: MockRedisError()
-    )
+    def _get_mock_client():
+        return MockRedisError()
+
+    monkeypatch.setattr(service_module, 'get_redis_client', _get_mock_client)
 
     response = client.post(
         '/auth/forgot-password',

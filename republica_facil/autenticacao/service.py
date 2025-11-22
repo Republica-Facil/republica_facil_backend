@@ -50,19 +50,16 @@ def request_password_reset_code(
                 detail=f'Erro no serviço de cache: {exc}',
             ) from exc
 
-        try:
-            background_tasks.add_task(
-                send_code_email, email=email, code=reset_code, name=user.fullname
-            )
-        except Exception as exc:
-            client.delete(redis_key)
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail='Erro ao enfileirar envio de código',
-            ) from exc
+        background_tasks.add_task(
+            send_code_email_task,
+            email,
+            reset_code,
+            user.fullname,
+            redis_key,
+        )
 
 
-def send_code_email(email: str, code: str, name: str = ''):
+def send_code_email(email: str, code: str, name: str = '') -> None:
     FILE_EMAIL_HTML = Path(__file__).parent / 'email.html'
 
     with open(FILE_EMAIL_HTML, 'r', encoding='utf-8') as file_html:
@@ -87,3 +84,15 @@ def send_code_email(email: str, code: str, name: str = ''):
         server.login(Settings().FROM_EMAIL, Settings().EMAIL_PASSWORD)
         server.send_message(mime_multipart)
         print('E-mail enviado com sucesso!')
+
+
+def send_code_email_task(
+    email: str, code: str, name: str, redis_key: str
+) -> None:
+    try:
+        send_code_email(email=email, code=code, name=name)
+    except Exception as exc:  # pragma: no cover - only logs in production
+        print(f'Erro ao enviar código por email: {exc}')
+        client = get_redis_client()
+        if client:
+            client.delete(redis_key)
